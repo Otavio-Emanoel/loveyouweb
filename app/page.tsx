@@ -28,6 +28,21 @@ export default function LoginPage() {
       return;
     }
 
+    // Two mock logins to surprise her
+    const validLogins = [
+      { email: "otavio@email.com", password: "agata" },
+      { email: "agata@email.com", password: "otavio" }
+    ];
+
+    const matched = validLogins.find(
+      (login) => login.email.toLowerCase() === email.toLowerCase() && login.password === password
+    );
+
+    if (!matched) {
+      setError("Incorrect code! Try again, sweet heart.");
+      return;
+    }
+
     setError("");
     setIsLoading(true);
 
@@ -74,10 +89,10 @@ export default function LoginPage() {
             {/* Left Ear */}
             <g
               className={`transition-all duration-500 origin-[80px_80px] ${isPasswordFocused && !showPassword
-                  ? "rotate-[-18deg] translate-x-[-4px] translate-y-[2px]"
-                  : isLoading
-                    ? "animate-wiggle-ear-left"
-                    : "animate-float-slow"
+                ? "rotate-[-18deg] translate-x-[-4px] translate-y-[2px]"
+                : isLoading
+                  ? "animate-wiggle-ear-left"
+                  : "animate-float-slow"
                 }`}
             >
               {/* Outer Ear */}
@@ -99,10 +114,10 @@ export default function LoginPage() {
             {/* Right Ear */}
             <g
               className={`transition-all duration-500 origin-[120px_80px] ${isPasswordFocused && !showPassword
-                  ? "rotate-[18deg] translate-x-[4px] translate-y-[2px]"
-                  : isLoading
-                    ? "animate-wiggle-ear-right"
-                    : "animate-float-medium"
+                ? "rotate-[18deg] translate-x-[4px] translate-y-[2px]"
+                : isLoading
+                  ? "animate-wiggle-ear-right"
+                  : "animate-float-medium"
                 }`}
             >
               {/* Outer Ear */}
@@ -265,12 +280,12 @@ export default function LoginPage() {
             {/* Left Paw */}
             <g
               className={`transition-all duration-500 ${isPasswordFocused
-                  ? "translate-x-[11px] translate-y-[-35px] scale-[1.05]"
-                  : isSuccess
-                    ? "translate-x-[4px] translate-y-[-12px] rotate-[-20deg]"
-                    : isLoading
-                      ? "translate-x-0 translate-y-[-6px] rotate-[-5deg]"
-                      : "translate-x-0 translate-y-0"
+                ? "translate-x-[11px] translate-y-[-35px] scale-[1.05]"
+                : isSuccess
+                  ? "translate-x-[4px] translate-y-[-12px] rotate-[-20deg]"
+                  : isLoading
+                    ? "translate-x-0 translate-y-[-6px] rotate-[-5deg]"
+                    : "translate-x-0 translate-y-0"
                 }`}
             >
               <circle
@@ -292,14 +307,14 @@ export default function LoginPage() {
             {/* Right Paw */}
             <g
               className={`transition-all duration-500 ${isPasswordFocused && !showPassword
-                  ? "translate-x-[-11px] translate-y-[-35px] scale-[1.05]"
-                  : isPasswordFocused && showPassword
-                    ? "translate-x-[-2px] translate-y-[-10px] rotate-[18deg]" // peeking
-                    : isSuccess
-                      ? "translate-x-[-4px] translate-y-[-12px] rotate-[20deg]"
-                      : isLoading
-                        ? "translate-x-0 translate-y-[-6px] rotate-[5deg]"
-                        : "translate-x-0 translate-y-0"
+                ? "translate-x-[-11px] translate-y-[-35px] scale-[1.05]"
+                : isPasswordFocused && showPassword
+                  ? "translate-x-[-2px] translate-y-[-10px] rotate-[18deg]" // peeking
+                  : isSuccess
+                    ? "translate-x-[-4px] translate-y-[-12px] rotate-[20deg]"
+                    : isLoading
+                      ? "translate-x-0 translate-y-[-6px] rotate-[5deg]"
+                      : "translate-x-0 translate-y-0"
                 }`}
             >
               <circle
