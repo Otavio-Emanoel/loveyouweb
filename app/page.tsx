@@ -27,8 +27,6 @@ export default function LoginPage() {
       setRedirectProgress((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
-          const name = email.split("@")[0].toLowerCase();
-          router.push(`/welcome?user=${name}`);
           return 100;
         }
         return prev + 2;
@@ -36,7 +34,14 @@ export default function LoginPage() {
     }, 50);
 
     return () => clearInterval(interval);
-  }, [isRedirecting, email, router]);
+  }, [isRedirecting]);
+
+  useEffect(() => {
+    if (redirectProgress >= 100 && isRedirecting) {
+      const name = email.split("@")[0].toLowerCase();
+      router.push(`/welcome?user=${name}`);
+    }
+  }, [redirectProgress, isRedirecting, email, router]);
 
   const getRedirectMessage = () => {
     if (redirectProgress < 30) return "Packing warm virtual hugs...";
