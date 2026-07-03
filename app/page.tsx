@@ -17,14 +17,14 @@ export default function LoginPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      setError("Please fill in all fields 💖");
+      setError("Please fill in all fields");
       return;
     }
-    
+
     // Simple email regex validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setError("Please enter a valid email address 🎀");
+      setError("Please enter a valid email address");
       return;
     }
 
@@ -67,19 +67,18 @@ export default function LoginPage() {
 
       {/* Login Card */}
       <div className="w-[420px] max-w-[95%] p-8 md:p-10 rounded-3xl bg-white/70 backdrop-blur-xl border border-white/50 shadow-[0_20px_50px_rgba(251,180,189,0.3)] relative z-10 transition-all duration-500 hover:shadow-[0_25px_60px_rgba(251,180,189,0.4)] animate-float-medium">
-        
+
         {/* Animated Interactive Bunny Mascot */}
         <div className="w-40 h-40 mx-auto -mt-24 md:-mt-28 mb-4 relative z-20">
           <svg className="w-full h-full overflow-visible" viewBox="0 0 200 160">
             {/* Left Ear */}
-            <g 
-              className={`transition-all duration-500 origin-[80px_80px] ${
-                isPasswordFocused && !showPassword
+            <g
+              className={`transition-all duration-500 origin-[80px_80px] ${isPasswordFocused && !showPassword
                   ? "rotate-[-18deg] translate-x-[-4px] translate-y-[2px]"
                   : isLoading
-                  ? "animate-wiggle-ear-left"
-                  : "animate-float-slow"
-              }`}
+                    ? "animate-wiggle-ear-left"
+                    : "animate-float-slow"
+                }`}
             >
               {/* Outer Ear */}
               <path
@@ -99,13 +98,12 @@ export default function LoginPage() {
 
             {/* Right Ear */}
             <g
-              className={`transition-all duration-500 origin-[120px_80px] ${
-                isPasswordFocused && !showPassword
+              className={`transition-all duration-500 origin-[120px_80px] ${isPasswordFocused && !showPassword
                   ? "rotate-[18deg] translate-x-[4px] translate-y-[2px]"
                   : isLoading
-                  ? "animate-wiggle-ear-right"
-                  : "animate-float-medium"
-              }`}
+                    ? "animate-wiggle-ear-right"
+                    : "animate-float-medium"
+                }`}
             >
               {/* Outer Ear */}
               <path
@@ -156,9 +154,8 @@ export default function LoginPage() {
 
             {/* Dynamic Face Elements */}
             <g
-              className={`transition-transform duration-300 ${
-                isEmailFocused ? "translate-y-[2.5px]" : "translate-y-0"
-              }`}
+              className={`transition-transform duration-300 ${isEmailFocused ? "translate-y-[2.5px]" : "translate-y-0"
+                }`}
             >
               {/* Eyes */}
               {isSuccess ? (
@@ -267,15 +264,14 @@ export default function LoginPage() {
 
             {/* Left Paw */}
             <g
-              className={`transition-all duration-500 ${
-                isPasswordFocused
+              className={`transition-all duration-500 ${isPasswordFocused
                   ? "translate-x-[11px] translate-y-[-35px] scale-[1.05]"
                   : isSuccess
-                  ? "translate-x-[4px] translate-y-[-12px] rotate-[-20deg]"
-                  : isLoading
-                  ? "translate-x-0 translate-y-[-6px] rotate-[-5deg]"
-                  : "translate-x-0 translate-y-0"
-              }`}
+                    ? "translate-x-[4px] translate-y-[-12px] rotate-[-20deg]"
+                    : isLoading
+                      ? "translate-x-0 translate-y-[-6px] rotate-[-5deg]"
+                      : "translate-x-0 translate-y-0"
+                }`}
             >
               <circle
                 cx="70"
@@ -295,17 +291,16 @@ export default function LoginPage() {
 
             {/* Right Paw */}
             <g
-              className={`transition-all duration-500 ${
-                isPasswordFocused && !showPassword
+              className={`transition-all duration-500 ${isPasswordFocused && !showPassword
                   ? "translate-x-[-11px] translate-y-[-35px] scale-[1.05]"
                   : isPasswordFocused && showPassword
-                  ? "translate-x-[-2px] translate-y-[-10px] rotate-[18deg]" // peeking
-                  : isSuccess
-                  ? "translate-x-[-4px] translate-y-[-12px] rotate-[20deg]"
-                  : isLoading
-                  ? "translate-x-0 translate-y-[-6px] rotate-[5deg]"
-                  : "translate-x-0 translate-y-0"
-              }`}
+                    ? "translate-x-[-2px] translate-y-[-10px] rotate-[18deg]" // peeking
+                    : isSuccess
+                      ? "translate-x-[-4px] translate-y-[-12px] rotate-[20deg]"
+                      : isLoading
+                        ? "translate-x-0 translate-y-[-6px] rotate-[5deg]"
+                        : "translate-x-0 translate-y-0"
+                }`}
             >
               <circle
                 cx="130"
@@ -329,11 +324,21 @@ export default function LoginPage() {
         <div className="text-center mb-8 relative z-10">
           <h1 className="text-2xl font-bold text-pink-600 mb-2 flex items-center justify-center gap-1.5">
             {isSuccess ? (
-              <>Sweet Success! 💖</>
+              <span className="flex items-center gap-1.5">
+                Sweet Success!
+                <svg className="w-5 h-5 fill-pink-500 animate-heartbeat-slow" viewBox="0 0 24 24">
+                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                </svg>
+              </span>
             ) : (
-              <>
-                Sweet Login <span className="animate-heartbeat-slow inline-block">🌸</span>
-              </>
+              <span className="flex items-center gap-1.5">
+                Login
+                <span className="animate-heartbeat-slow inline-block">
+                  <svg className="w-5 h-5 fill-pink-400" viewBox="0 0 24 24">
+                    <path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-6 0 3 3 0 0 0 3 3zm0 8a3 3 0 0 0-3 3 3 3 0 0 0 6 0 3 3 0 0 0-3-3zm-4-4a3 3 0 0 0-3-3 3 3 0 0 0 0 6 3 3 0 0 0 3-3zm8 0a3 3 0 0 0 3-3 3 3 0 0 0 0 6 3 3 0 0 0-3-3zm-4-2a2 2 0 1 1-0.001 4.001A2 2 0 0 1 12 10z" />
+                  </svg>
+                </span>
+              </span>
             )}
           </h1>
           <p className="text-sm text-pink-500/80">
@@ -345,8 +350,13 @@ export default function LoginPage() {
 
         {/* Error Dialog */}
         {error && (
-          <div className="mb-5 p-3 rounded-2xl bg-rose-50 border border-rose-100 text-rose-500 text-xs text-center font-medium animate-bounce relative z-10">
-            {error}
+          <div className="mb-5 p-3 rounded-2xl bg-rose-50 border border-rose-100 text-rose-500 text-xs text-center font-medium animate-bounce relative z-10 flex items-center justify-center gap-1.5">
+            <svg className="w-3.5 h-3.5 fill-none stroke-current stroke-[2.5] text-rose-400 shrink-0" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" strokeLinecap="round" />
+            </svg>
+            <span>{error}</span>
           </div>
         )}
 
@@ -441,13 +451,11 @@ export default function LoginPage() {
                 onClick={() => setRememberMe(!rememberMe)}
                 className="flex items-center gap-2 group text-xs font-semibold text-pink-600/80 hover:text-pink-700 transition-colors focus:outline-none"
               >
-                <span className={`w-5 h-5 flex items-center justify-center rounded-lg border border-pink-200 bg-pink-50/20 transition-all duration-300 ${
-                  rememberMe ? 'scale-110 bg-pink-100/50 border-pink-300' : 'group-hover:scale-105'
-                }`}>
-                  <svg className={`w-3.5 h-3.5 transition-all duration-300 ${
-                    rememberMe ? 'fill-pink-500 scale-100' : 'fill-none stroke-pink-400/40 opacity-40 scale-75'
-                  }`} viewBox="0 0 24 24">
-                    <path strokeWidth="2" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                <span className={`w-5 h-5 flex items-center justify-center rounded-lg border border-pink-200 bg-pink-50/20 transition-all duration-300 ${rememberMe ? 'scale-110 bg-pink-100/50 border-pink-300' : 'group-hover:scale-105'
+                  }`}>
+                  <svg className={`w-3.5 h-3.5 transition-all duration-300 ${rememberMe ? 'fill-pink-500 scale-100' : 'fill-none stroke-pink-400/40 opacity-40 scale-75'
+                    }`} viewBox="0 0 24 24">
+                    <path strokeWidth="2" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                   </svg>
                 </span>
                 Remember me
@@ -478,9 +486,12 @@ export default function LoginPage() {
                   Sending Love...
                 </>
               ) : (
-                <>
-                  Let's Go! 💖
-                </>
+                <span className="flex items-center gap-1.5">
+                  Let's Go!
+                  <svg className="w-4 h-4 fill-current text-white animate-heartbeat-slow" viewBox="0 0 24 24">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                  </svg>
+                </span>
               )}
             </button>
           </form>
@@ -502,7 +513,7 @@ export default function LoginPage() {
               >
                 {/* Google Icon (Cute styling) */}
                 <svg className="w-5 h-5 text-pink-500 fill-current" viewBox="0 0 24 24">
-                  <path d="M12.24 10.285V13.4h6.887c-.648 2.41-2.519 4.13-5.136 4.13A5.727 5.727 0 018.2 11.8a5.727 5.727 0 015.79-5.735c1.47 0 2.8.543 3.818 1.488l2.42-2.42A9.08 9.08 0 0013.99 3c-4.969 0-9 4.03-9 9s4.031 9 9 9c4.97 0 8.784-3.415 8.784-8.785 0-.6-.051-1.17-.16-1.714H12.24z"/>
+                  <path d="M12.24 10.285V13.4h6.887c-.648 2.41-2.519 4.13-5.136 4.13A5.727 5.727 0 018.2 11.8a5.727 5.727 0 015.79-5.735c1.47 0 2.8.543 3.818 1.488l2.42-2.42A9.08 9.08 0 0013.99 3c-4.969 0-9 4.03-9 9s4.031 9 9 9c4.97 0 8.784-3.415 8.784-8.785 0-.6-.051-1.17-.16-1.714H12.24z" />
                 </svg>
               </button>
               <button
@@ -511,7 +522,7 @@ export default function LoginPage() {
               >
                 {/* GitHub Icon (Cute styling) */}
                 <svg className="w-5 h-5 text-pink-500 fill-current" viewBox="0 0 24 24">
-                  <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+                  <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
                 </svg>
               </button>
             </div>
@@ -521,9 +532,12 @@ export default function LoginPage() {
                 New to the sweet side?{" "}
                 <a
                   href="#"
-                  className="text-pink-600 hover:text-pink-700 underline underline-offset-4 decoration-pink-300 hover:decoration-pink-500 font-bold transition-all"
+                  className="text-pink-600 hover:text-pink-700 underline underline-offset-4 decoration-pink-300 hover:decoration-pink-500 font-bold transition-all inline-flex items-center gap-1"
                 >
-                  Join with Love 💖
+                  Join with Love
+                  <svg className="w-3.5 h-3.5 fill-pink-500 animate-heartbeat-slow inline-block" viewBox="0 0 24 24">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                  </svg>
                 </a>
               </p>
             </div>
