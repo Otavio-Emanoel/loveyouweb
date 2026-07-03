@@ -176,3 +176,29 @@ body {
   transform-origin: bottom left;
 }
 
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2) rotate(15deg);
+  }
+}
+
+.animate-twinkle-1 {
+  animation: twinkle 3s infinite ease-in-out;
+}
+
+.animate-twinkle-2 {
+  animation: twinkle 4s infinite ease-in-out;
+  animation-delay: 1.5s;
+}
+
+.animate-twinkle-3 {
+  animation: twinkle 2.5s infinite ease-in-out;
+  animation-delay: 0.7s;
+}
+
+

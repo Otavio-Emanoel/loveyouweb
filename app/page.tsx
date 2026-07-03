@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [showForgotModal, setShowForgotModal] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,10 +65,32 @@ export default function LoginPage() {
     { id: 7, left: "93%", size: "w-7 h-7", anim: "animate-float-heart-3", color: "text-pink-400/25" },
   ];
 
+  // Twinkling stars configuration
+  const floatingStars = [
+    { id: 1, left: "15%", top: "20%", size: "w-4 h-4", anim: "animate-twinkle-1", color: "text-pink-400/40" },
+    { id: 2, left: "80%", top: "15%", size: "w-5 h-5", anim: "animate-twinkle-2", color: "text-pink-400/30" },
+    { id: 3, left: "7%", top: "65%", size: "w-3 h-3", anim: "animate-twinkle-3", color: "text-rose-400/35" },
+    { id: 4, left: "85%", top: "75%", size: "w-4 h-4", anim: "animate-twinkle-1", color: "text-rose-400/40" },
+    { id: 5, left: "50%", top: "8%", size: "w-5 h-5", anim: "animate-twinkle-3", color: "text-pink-400/25" },
+  ];
+
   return (
     <main className="min-h-screen w-full flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-[#ffeef2] via-[#fff0f5] to-[#fce4ec]">
-      {/* Floating Hearts Background */}
+      {/* Floating Elements Background */}
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+        {/* Floating Clouds */}
+        <div className="absolute top-[12%] left-[6%] text-pink-200/30 animate-float-slow w-24 h-16">
+          <svg className="w-full h-full fill-current" viewBox="0 0 24 24">
+            <path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+          </svg>
+        </div>
+        <div className="absolute bottom-[18%] right-[8%] text-pink-200/30 animate-float-medium w-28 h-20">
+          <svg className="w-full h-full fill-current" viewBox="0 0 24 24">
+            <path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+          </svg>
+        </div>
+
+        {/* Floating Hearts */}
         {floatingHearts.map((heart) => (
           <div
             key={heart.id}
@@ -75,6 +98,18 @@ export default function LoginPage() {
           >
             <svg className="w-full h-full fill-current" viewBox="0 0 24 24">
               <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+            </svg>
+          </div>
+        ))}
+
+        {/* Twinkling Stars */}
+        {floatingStars.map((star) => (
+          <div
+            key={star.id}
+            className={`absolute ${star.left} ${star.top} ${star.size} ${star.color} ${star.anim}`}
+          >
+            <svg className="w-full h-full fill-current" viewBox="0 0 24 24">
+              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
             </svg>
           </div>
         ))}
@@ -476,12 +511,13 @@ export default function LoginPage() {
                 Remember me
               </button>
 
-              <a
-                href="#"
-                className="text-xs font-semibold text-pink-600/70 hover:text-pink-700 hover:scale-[1.02] transition-all"
+              <button
+                type="button"
+                onClick={() => setShowForgotModal(true)}
+                className="text-xs font-semibold text-pink-600/70 hover:text-pink-700 hover:scale-[1.02] transition-all cursor-pointer focus:outline-none"
               >
                 Forgot secret?
-              </a>
+              </button>
             </div>
 
             {/* Submit Button */}
@@ -512,6 +548,45 @@ export default function LoginPage() {
           </form>
         )}
       </div>
+
+      {/* Forgot Password Surprise Modal */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-pink-950/20 backdrop-blur-xs animate-fade-in">
+          <div className="w-[360px] max-w-full p-6 rounded-3xl bg-white border border-pink-100 shadow-[0_20px_50px_rgba(251,180,189,0.45)] text-center relative animate-float-medium">
+            {/* Close Button */}
+            <button
+              onClick={() => setShowForgotModal(false)}
+              className="absolute top-4 right-4 text-pink-400 hover:text-pink-600 transition-colors focus:outline-none cursor-pointer"
+            >
+              <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Cute lock heart icon */}
+            <div className="w-16 h-16 mx-auto rounded-full bg-pink-50 border border-pink-100 flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 fill-pink-500 animate-heartbeat-slow" viewBox="0 0 24 24">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+              </svg>
+            </div>
+
+            <h3 className="text-lg font-bold text-pink-700 mb-2">Lost your secret key?</h3>
+            <p className="text-sm text-pink-600/90 leading-relaxed mb-6">
+              Hint: The password is the name of the person you love the most in the entire world!
+              <svg className="w-4 h-4 fill-current text-pink-500 inline-block ml-1 animate-heartbeat-slow align-middle" viewBox="0 0 24 24">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+              </svg>
+            </p>
+
+            <button
+              onClick={() => setShowForgotModal(false)}
+              className="w-full py-2.5 bg-gradient-to-r from-pink-400 to-rose-400 text-white font-bold rounded-2xl shadow-sm hover:from-pink-500 hover:to-rose-500 transition-all duration-300 cursor-pointer"
+            >
+              Got it!
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
