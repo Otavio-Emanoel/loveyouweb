@@ -1,26 +1,178 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fff5f7;
+  --foreground: #4a2e35;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-quicksand), var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+body {
+  background: linear-gradient(135deg, #ffeef2 0%, #fff0f5 50%, #fce4ec 100%);
+  color: var(--foreground);
+  overflow-x: hidden;
+}
+
+/* Custom Cute Animations */
+
+@keyframes float-heart {
+  0% {
+    transform: translateY(110vh) translateX(0) scale(0.6) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.7;
+  }
+  90% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateY(-10vh) translateX(50px) scale(1) rotate(360deg);
+    opacity: 0;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes float-heart-reverse {
+  0% {
+    transform: translateY(110vh) translateX(0) scale(0.8) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  90% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-10vh) translateX(-50px) scale(0.5) rotate(-360deg);
+    opacity: 0;
+  }
 }
+
+@keyframes float-slow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-15px) rotate(3deg);
+  }
+}
+
+@keyframes float-medium {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(-3deg);
+  }
+}
+
+@keyframes heartbeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.1);
+  }
+  40% {
+    transform: scale(1.05);
+  }
+  60% {
+    transform: scale(1.15);
+  }
+}
+
+@keyframes bunny-blink {
+  0%, 90%, 100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.1);
+  }
+}
+
+@keyframes blush-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes wiggle-ear-left {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-8deg);
+  }
+}
+
+@keyframes wiggle-ear-right {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
+.animate-float-heart-1 {
+  animation: float-heart 20s linear infinite;
+}
+
+.animate-float-heart-2 {
+  animation: float-heart-reverse 25s linear infinite;
+  animation-delay: 4s;
+}
+
+.animate-float-heart-3 {
+  animation: float-heart 18s linear infinite;
+  animation-delay: 8s;
+}
+
+.animate-float-heart-4 {
+  animation: float-heart-reverse 22s linear infinite;
+  animation-delay: 12s;
+}
+
+.animate-float-slow {
+  animation: float-slow 6s ease-in-out infinite;
+}
+
+.animate-float-medium {
+  animation: float-medium 4s ease-in-out infinite;
+}
+
+.animate-heartbeat-slow {
+  animation: heartbeat 2.5s infinite;
+}
+
+.animate-bunny-blink {
+  animation: bunny-blink 4s infinite;
+  transform-origin: center;
+}
+
+.animate-blush-pulse {
+  animation: blush-pulse 2s infinite ease-in-out;
+  transform-origin: center;
+}
+
+.animate-wiggle-ear-left {
+  animation: wiggle-ear-left 3s infinite ease-in-out;
+  transform-origin: bottom right;
+}
+
+.animate-wiggle-ear-right {
+  animation: wiggle-ear-right 3.2s infinite ease-in-out;
+  transform-origin: bottom left;
+}
+
