@@ -1,8 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
+  const router = useRouter();
+  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isEmailFocused, setIsEmailFocused] = useState(false);
@@ -12,8 +15,35 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [redirectProgress, setRedirectProgress] = useState(0);
   const [error, setError] = useState("");
   const [showForgotModal, setShowForgotModal] = useState(false);
+
+  useEffect(() => {
+    if (!isRedirecting) return;
+
+    const interval = setInterval(() => {
+      setRedirectProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          const name = email.split("@")[0].toLowerCase();
+          router.push(`/welcome?user=${name}`);
+          return 100;
+        }
+        return prev + 2;
+      });
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [isRedirecting, email, router]);
+
+  const getRedirectMessage = () => {
+    if (redirectProgress < 30) return "Packing warm virtual hugs...";
+    if (redirectProgress < 60) return "Gathering twinkling stars...";
+    if (redirectProgress < 85) return "Opening your happy place...";
+    return "Entering... Hold tight!";
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,6 +81,7 @@ export default function LoginPage() {
     setTimeout(() => {
       setIsLoading(false);
       setIsSuccess(true);
+      setIsRedirecting(true);
     }, 2000);
   };
 
@@ -410,21 +441,39 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Success screen overlay */}
-        {isSuccess ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center animate-fade-in">
-            <div className="w-20 h-20 rounded-full bg-pink-100 flex items-center justify-center mb-4 border-2 border-pink-200">
-              <svg className="w-10 h-10 fill-pink-500 animate-heartbeat-slow" viewBox="0 0 24 24">
+        {/* Success / Redirection screen overlay */}
+        {isRedirecting ? (
+          <div className="flex flex-col items-center justify-center py-6 text-center animate-fade-in relative z-10">
+            {/* Mascot in transition state */}
+            <div className="w-16 h-16 rounded-full bg-pink-100 flex items-center justify-center mb-6 border-2 border-pink-200 animate-heartbeat-slow">
+              <svg className="w-8 h-8 fill-pink-500" viewBox="0 0 24 24">
                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
               </svg>
             </div>
-            <p className="text-pink-600 font-semibold mb-6">Logging you in...</p>
-            <button
-              onClick={() => setIsSuccess(false)}
-              className="px-6 py-2.5 rounded-full text-xs font-semibold text-pink-500 border border-pink-200 hover:bg-pink-50 transition-colors"
-            >
-              Reset Demo
-            </button>
+
+            <p className="text-pink-700 font-bold text-sm mb-4 min-h-[20px]">
+              {getRedirectMessage()}
+            </p>
+
+            {/* Custom Progress Bar Container */}
+            <div className="w-full h-4 bg-pink-100/50 rounded-full overflow-visible relative border border-pink-200/40 p-0.5">
+              {/* Progress Fill */}
+              <div
+                className="h-full bg-gradient-to-r from-pink-400 to-rose-400 rounded-full transition-all duration-100 ease-out relative"
+                style={{ width: `${redirectProgress}%` }}
+              >
+                {/* Small tracking heart at the tip of the progress bar! */}
+                <div className="absolute right-[-14px] top-[-10px] w-8 h-8 flex items-center justify-center text-pink-500 animate-bounce">
+                  <svg className="w-5 h-5 fill-current filter drop-shadow-md" viewBox="0 0 24 24">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <span className="text-xs text-pink-400 font-bold mt-3">
+              {redirectProgress}%
+            </span>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5 relative z-10">
