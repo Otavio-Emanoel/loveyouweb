@@ -496,53 +496,6 @@ export default function LoginPage() {
             </button>
           </form>
         )}
-
-        {/* Divider & Socials */}
-        {!isSuccess && (
-          <div className="mt-8 relative z-10">
-            <div className="relative flex py-2 items-center">
-              <div className="flex-grow border-t border-pink-100"></div>
-              <span className="flex-shrink mx-4 text-xs font-semibold text-pink-300">or sign in with</span>
-              <div className="flex-grow border-t border-pink-100"></div>
-            </div>
-
-            <div className="flex justify-center gap-4 mt-4">
-              <button
-                type="button"
-                className="w-12 h-12 rounded-full border border-pink-100 flex items-center justify-center bg-white/40 hover:bg-pink-50 hover:border-pink-200 hover:scale-110 active:scale-95 transition-all duration-300 shadow-sm cursor-pointer"
-              >
-                {/* Google Icon (Cute styling) */}
-                <svg className="w-5 h-5 text-pink-500 fill-current" viewBox="0 0 24 24">
-                  <path d="M12.24 10.285V13.4h6.887c-.648 2.41-2.519 4.13-5.136 4.13A5.727 5.727 0 018.2 11.8a5.727 5.727 0 015.79-5.735c1.47 0 2.8.543 3.818 1.488l2.42-2.42A9.08 9.08 0 0013.99 3c-4.969 0-9 4.03-9 9s4.031 9 9 9c4.97 0 8.784-3.415 8.784-8.785 0-.6-.051-1.17-.16-1.714H12.24z" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                className="w-12 h-12 rounded-full border border-pink-100 flex items-center justify-center bg-white/40 hover:bg-pink-50 hover:border-pink-200 hover:scale-110 active:scale-95 transition-all duration-300 shadow-sm cursor-pointer"
-              >
-                {/* GitHub Icon (Cute styling) */}
-                <svg className="w-5 h-5 text-pink-500 fill-current" viewBox="0 0 24 24">
-                  <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="text-center mt-6">
-              <p className="text-xs font-semibold text-pink-400">
-                New to the sweet side?{" "}
-                <a
-                  href="#"
-                  className="text-pink-600 hover:text-pink-700 underline underline-offset-4 decoration-pink-300 hover:decoration-pink-500 font-bold transition-all inline-flex items-center gap-1"
-                >
-                  Join with Love
-                  <svg className="w-3.5 h-3.5 fill-pink-500 animate-heartbeat-slow inline-block" viewBox="0 0 24 24">
-                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                  </svg>
-                </a>
-              </p>
-            </div>
-          </div>
-        )}
       </div>
     </main>
   );
