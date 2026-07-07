@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sweet Login | Welcome Back! 💖",
+  title: "Welcome Back! 💖",
   description: "A cute, pink-themed, and fully animated login experience designed to make you smile.",
 };
 
