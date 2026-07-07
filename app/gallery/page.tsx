@@ -74,20 +74,30 @@ const GALLERY_ITEMS = [
   { id: 45, col: 11, row: 6, colSpan: 2, rowSpan: 1 }
 ];
 
+interface ImageMeta {
+  url: string;
+  date: string;
+  description: string;
+}
+
 function GalleryContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const user = searchParams.get("user") || "";
 
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<ImageMeta[]>([]);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
+
+  // States for expanding selected item
+  const [selectedItem, setSelectedItem] = useState<(ImageMeta & { index: number }) | null>(null);
+  const [clickOrigin, setClickOrigin] = useState<{ x: number; y: number } | null>(null);
 
   // Fetch images database
   useEffect(() => {
     fetch("/images.json")
       .then((res) => res.json())
-      .then((data: { images: string[] }) => {
+      .then((data: { images: ImageMeta[] }) => {
         setImages(data.images);
         setLoaded(true);
       })
@@ -99,9 +109,15 @@ function GalleryContent() {
 
   // Dynamically repeat images if JSON contains fewer than 46 images
   const gridImages = useMemo(() => {
-    if (images.length === 0) return Array(GALLERY_ITEMS.length).fill("");
+    if (images.length === 0) return Array(GALLERY_ITEMS.length).fill(null);
     return Array.from({ length: GALLERY_ITEMS.length }, (_, i) => images[i % images.length]);
   }, [images]);
+
+  // Handle cell click to open details modal
+  const handleCellClick = (e: React.MouseEvent, index: number, itemMeta: ImageMeta) => {
+    setClickOrigin({ x: e.clientX, y: e.clientY });
+    setSelectedItem({ ...itemMeta, index });
+  };
 
   // Compute 3D translations and rotations based on distance
   const getCellStyle = (item: typeof GALLERY_ITEMS[0]): React.CSSProperties => {
@@ -180,6 +196,11 @@ function GalleryContent() {
             key={item.id}
             onMouseEnter={() => setHoveredId(item.id)}
             onMouseLeave={() => setHoveredId(null)}
+            onClick={(e) => {
+              if (gridImages[i]) {
+                handleCellClick(e, i, gridImages[i]);
+              }
+            }}
             className="relative rounded-xl overflow-hidden cursor-pointer"
             style={{
               gridColumn: `${item.col + 1} / span ${item.colSpan}`,
@@ -189,9 +210,9 @@ function GalleryContent() {
               transformStyle: "preserve-3d",
             }}
           >
-            {loaded && gridImages[i] ? (
+            {loaded && gridImages[i]?.url ? (
               <img
-                src={gridImages[i]}
+                src={gridImages[i].url}
                 alt={`Love Memory ${i + 1}`}
                 className="w-full h-full object-cover pointer-events-none"
                 draggable={false}
@@ -239,6 +260,67 @@ function GalleryContent() {
           Back to Dashboard
         </button>
       </div>
+
+      {/* Expanded Details Modal (iOS-style zoom from click origin) */}
+      {selectedItem && (
+        <div 
+          onClick={() => setSelectedItem(null)}
+          className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-4 md:p-8 animate-fade-in cursor-zoom-out"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking card body
+            className="relative w-full max-w-[85vw] md:max-w-4xl h-[75vh] md:h-[60vh] rounded-3xl overflow-hidden bg-zinc-900 border border-pink-500/25 shadow-2xl flex flex-col md:flex-row animate-zoom-expand cursor-default"
+            style={{
+              transformOrigin: clickOrigin ? `${clickOrigin.x}px ${clickOrigin.y}px` : "center"
+            }}
+          >
+            {/* Left/Top Column: Image Display */}
+            <div className="w-full md:w-3/5 h-1/2 md:h-full relative overflow-hidden bg-black/60 flex items-center justify-center border-b md:border-b-0 md:border-r border-zinc-800">
+              <img
+                src={selectedItem.url}
+                alt="Selected Love Memory"
+                className="w-full h-full object-cover"
+                draggable={false}
+              />
+              {/* Overlay shadow to integrate image with card frame */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none" />
+            </div>
+
+            {/* Right/Bottom Column: Memory Details Card */}
+            <div className="w-full md:w-2/5 h-1/2 md:h-full p-6 md:p-8 flex flex-col justify-between bg-zinc-900/95">
+              <div className="space-y-4">
+                {/* Date indicator */}
+                <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-pink-400 font-mono">
+                  <svg className="w-4 h-4 fill-current animate-heartbeat-slow text-pink-500" viewBox="0 0 24 24">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                  </svg>
+                  {selectedItem.date}
+                </div>
+
+                {/* Main text memory explanation */}
+                <div className="pt-2 border-t border-zinc-800/80">
+                  <p className="text-zinc-100 font-serif italic text-base md:text-lg leading-relaxed">
+                    "{selectedItem.description}"
+                  </p>
+                </div>
+              </div>
+
+              {/* Modal footer controls */}
+              <div className="flex flex-col gap-3 pt-4 border-t border-zinc-800/60 mt-auto">
+                <span className="text-[10px] text-zinc-500/85 italic text-center font-mono">
+                  Otávio & Ágata • Precious Moments
+                </span>
+                <button
+                  onClick={() => setSelectedItem(null)}
+                  className="w-full py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white text-xs font-bold rounded-2xl shadow-md hover:scale-[1.02] active:scale-95 transition-all cursor-pointer text-center focus:outline-none"
+                >
+                  Close Memory
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
