@@ -265,6 +265,7 @@ function GameContent() {
     camera.rotation.order = "YXZ";
     camera.position.set(0, 1.6, 0);
     cameraRef.current = camera;
+    scene.add(camera);
 
     const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current!, antialias: true, powerPreference:"high-performance" });
     renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
