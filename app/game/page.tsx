@@ -25,6 +25,7 @@ interface Tracer {
 
 interface Enemy {
   mesh: THREE.Group;
+  orbitalRing: THREE.Mesh;
   health: number;
   maxHealth: number;
   velocity: THREE.Vector3;
@@ -51,6 +52,51 @@ const PLATFORMS = [
   { x: 0, z: 28, y: 4.5, w: 12, d: 10, h: 1.5 }     // High Platform (top surface at 5.25)
 ];
 
+// Weapon parameters
+interface WeaponConfig {
+  name: string;
+  cooldown: number; // in seconds
+  adsFov: number;
+  recoil: number;
+  automatic: boolean;
+  aimable: boolean;
+  shootSynthFreq: number;
+  shootSynthType: OscillatorType;
+}
+
+const WEAPONS: WeaponConfig[] = [
+  {
+    name: "Blaster",
+    cooldown: 0.25,
+    adsFov: 48,
+    recoil: 0.06,
+    automatic: false,
+    aimable: true,
+    shootSynthFreq: 900,
+    shootSynthType: "sine"
+  },
+  {
+    name: "Minigun",
+    cooldown: 0.08,
+    adsFov: 70, // No zoom / can't aim
+    recoil: 0.025,
+    automatic: true,
+    aimable: false,
+    shootSynthFreq: 750,
+    shootSynthType: "triangle"
+  },
+  {
+    name: "Sniper",
+    cooldown: 1.5,
+    adsFov: 15, // Extreme scope zoom
+    recoil: 0.22,
+    automatic: false,
+    aimable: true,
+    shootSynthFreq: 1100,
+    shootSynthType: "sawtooth"
+  }
+];
+
 function GameContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -65,6 +111,7 @@ function GameContent() {
   const [isLocked, setIsLocked] = useState(false);
   const [isAiming, setIsAiming] = useState(false);
   const [redScreenFlash, setRedScreenFlash] = useState(false);
+  const [activeWeaponIndex, setActiveWeaponIndex] = useState(0); // 0: Blaster, 1: Minigun, 2: Sniper
 
   // Dialog System State
   const [npcDialogue, setNpcDialogue] = useState<string | null>(null);
@@ -82,6 +129,13 @@ function GameContent() {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const targetsGroupRef = useRef<THREE.Group | null>(null);
   const gunGroupRef = useRef<THREE.Group | null>(null);
+  
+  // Specific weapon mesh refs inside the camera holder
+  const blasterRef = useRef<THREE.Group | null>(null);
+  const minigunRef = useRef<THREE.Group | null>(null);
+  const minigunBarrelsRef = useRef<THREE.Group | null>(null);
+  const sniperRef = useRef<THREE.Group | null>(null);
+
   const enemiesRef = useRef<Enemy[]>([]);
   const npcsRef = useRef<NPC[]>([]);
 
@@ -89,17 +143,26 @@ function GameContent() {
   const playerPositionYRef = useRef(0);
   const playerVelocityYRef = useRef(0);
   const isGroundedRef = useRef(true);
+  const horizontalVelocityRef = useRef(new THREE.Vector3());
   
+  // Advanced Camera feedback states
+  const bobTimeRef = useRef(0);
+  const landingShockRef = useRef(0);
+
   // Game simulation state refs
   const keysRef = useRef({ w: false, a: false, s: false, d: false, shift: false, space: false, ctrl: false });
   const mouseMoveRef = useRef({ movementX: 0, movementY: 0 });
   const isLockedRef = useRef(false);
   const isAimingRef = useRef(false);
+  const leftClickHeldRef = useRef(false);
+  const activeWeaponIndexRef = useRef(0);
+  
   const particlesRef = useRef<Particle[]>([]);
   const tracersRef = useRef<Tracer[]>([]);
   const gunRecoilRef = useRef(0);
+  const weaponCooldownRef = useRef(0);
   
-  // Camera kickback offset (aim recoil)
+  // Recoil kick offsets
   const cameraKickRef = useRef(0);
   const cameraTargetKickRef = useRef(0);
 
@@ -112,17 +175,19 @@ function GameContent() {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       
-      osc.type = isAimingRef.current ? "triangle" : "sine";
-      osc.frequency.setValueAtTime(isAimingRef.current ? 800 : 950, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.12);
+      const config = WEAPONS[activeWeaponIndexRef.current];
+
+      osc.type = config.shootSynthType;
+      osc.frequency.setValueAtTime(config.shootSynthFreq, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.15);
       
-      gain.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(config.name === "Minigun" ? 0.08 : 0.16, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
       
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start();
-      osc.stop(ctx.currentTime + 0.12);
+      osc.stop(ctx.currentTime + 0.15);
     } catch (e) {
       console.warn(e);
     }
@@ -240,6 +305,10 @@ function GameContent() {
       const active = document.pointerLockElement === canvasRef.current;
       setIsLocked(active);
       isLockedRef.current = active;
+      
+      if (!active) {
+        leftClickHeldRef.current = false;
+      }
     };
     
     document.addEventListener("pointerlockchange", handleLockChange);
@@ -283,11 +352,11 @@ function GameContent() {
 
     // Scene & Camera
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0307);
+    scene.background = new THREE.Color(0x080205);
     sceneRef.current = scene;
 
     // Fog for depth
-    scene.fog = new THREE.FogExp2(0x0a0307, 0.025);
+    scene.fog = new THREE.FogExp2(0x080205, 0.022);
 
     const camera = new THREE.PerspectiveCamera(
       70,
@@ -313,7 +382,7 @@ function GameContent() {
     // Floor (Grid + Material Helper)
     const floorGeo = new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE);
     const floorMat = new THREE.MeshPhongMaterial({
-      color: 0x0c040a,
+      color: 0x0a0308,
       shininess: 30,
       specular: 0x111111,
     });
@@ -327,25 +396,41 @@ function GameContent() {
     gridHelper.position.y = -0.48;
     scene.add(gridHelper);
 
-    // Build platform meshes
+    // Build Platform Meshes (Physical Translucent Materials + Glowing Outlines)
     PLATFORMS.forEach((p) => {
       const pGeo = new THREE.BoxGeometry(p.w, p.h, p.d);
-      const pMat = new THREE.MeshPhongMaterial({
-        color: 0xdb2777,
-        emissive: 0x1c000e,
-        shininess: 60,
-        specular: 0xffffff,
+      
+      // Beautiful glassmorphic platform
+      const pMat = new THREE.MeshPhysicalMaterial({
+        color: 0xec4899,
+        emissive: 0x1e0310,
+        roughness: 0.1,
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.75,
+        transmission: 0.5,
+        thickness: 1.5,
       });
+
       const mesh = new THREE.Mesh(pGeo, pMat);
       mesh.position.set(p.x, p.y, p.z);
       mesh.receiveShadow = true;
       mesh.castShadow = true;
       scene.add(mesh);
+
+      // Glowing outline border edges
+      const edges = new THREE.EdgesGeometry(pGeo);
+      const borderLine = new THREE.LineSegments(
+        edges,
+        new THREE.LineBasicMaterial({ color: 0xff66cc, linewidth: 2 })
+      );
+      borderLine.position.copy(mesh.position);
+      scene.add(borderLine);
     });
 
     // Outer boundary walls (neon frame)
     const boundaryGeo = new THREE.BoxGeometry(1, 12, MAP_SIZE);
-    const boundaryMat = new THREE.MeshPhongMaterial({ color: 0x1e0717, shininess: 10 });
+    const boundaryMat = new THREE.MeshPhongMaterial({ color: 0x15030f, shininess: 10 });
     const wallLeft = new THREE.Mesh(boundaryGeo, boundaryMat);
     wallLeft.position.set(-MAP_SIZE / 2, 5.5, 0);
     scene.add(wallLeft);
@@ -363,18 +448,17 @@ function GameContent() {
     scene.add(wallFront);
 
     // Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.42);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffd1e6, 1.0);
+    const dirLight = new THREE.DirectionalLight(0xffd1e6, 1.2);
     dirLight.position.set(20, 40, 30);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 1024;
     dirLight.shadow.mapSize.height = 1024;
     scene.add(dirLight);
 
-    // Glowing core target lights
-    const pointLight = new THREE.PointLight(0xf43f5e, 1.8, 60);
+    const pointLight = new THREE.PointLight(0xf43f5e, 2.0, 70);
     pointLight.position.set(0, 8, 0);
     scene.add(pointLight);
 
@@ -404,50 +488,45 @@ function GameContent() {
       targetsGroup.add(heartMesh);
     }
 
-    // Spawn Hostile Gloom Cloud Enemies
+    // Spawn Hostile Enemy Core Orbs with Rotating Orbital Rings
     enemiesRef.current = [];
-    const colors = [0x5b0e2d, 0x3c081e];
-    for (let i = 0; i < 4; i++) {
+    const orbColors = [0x700c3b, 0x420822];
+    for (let i = 0; i < 5; i++) {
       const enemyGroup = new THREE.Group();
       
-      // Cloud cluster geometry (composed of three spheres)
-      const cloudGeo = new THREE.SphereGeometry(0.8, 8, 8);
-      const cloudMat = new THREE.MeshPhongMaterial({
-        color: colors[i % colors.length],
-        emissive: 0x1f030e,
-        shininess: 10,
-        transparent: true,
-        opacity: 0.9
+      // Bumpy glowing central core
+      const coreGeo = new THREE.SphereGeometry(0.7, 12, 12);
+      const coreMat = new THREE.MeshPhongMaterial({
+        color: orbColors[i % orbColors.length],
+        emissive: 0x22010c,
+        shininess: 50,
       });
+      const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+      enemyGroup.add(coreMesh);
 
-      const sphere1 = new THREE.Mesh(cloudGeo, cloudMat);
-      sphere1.position.set(0, 0, 0);
-      enemyGroup.add(sphere1);
-
-      const sphere2 = new THREE.Mesh(cloudGeo, cloudMat);
-      sphere2.position.set(-0.5, 0.1, 0.2);
-      enemyGroup.add(sphere2);
-
-      const sphere3 = new THREE.Mesh(cloudGeo, cloudMat);
-      sphere3.position.set(0.5, -0.1, -0.2);
-      enemyGroup.add(sphere3);
+      // Neon orbital ring rotating around the core
+      const ringGeo = new THREE.TorusGeometry(1.0, 0.05, 8, 32);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xff3385 });
+      const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+      ringMesh.rotation.x = Math.PI / 3;
+      enemyGroup.add(ringMesh);
 
       // Angry Eyes (glowing red)
       const eyeGeo = new THREE.BoxGeometry(0.12, 0.06, 0.1);
       const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff003c });
       const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-      leftEye.position.set(-0.35, 0.15, -0.75);
+      leftEye.position.set(-0.3, 0.15, -0.65);
       leftEye.rotation.y = Math.PI / 12;
-      leftEye.rotation.z = -Math.PI / 12; // angry tilt
+      leftEye.rotation.z = -Math.PI / 12;
       enemyGroup.add(leftEye);
 
       const rightEye = leftEye.clone();
-      rightEye.position.x = 0.35;
+      rightEye.position.x = 0.3;
       rightEye.rotation.y = -Math.PI / 12;
       rightEye.rotation.z = Math.PI / 12;
       enemyGroup.add(rightEye);
 
-      // Set initial coordinate outside player center
+      // Position enemy
       enemyGroup.position.set(
         (Math.random() > 0.5 ? 1 : -1) * (20 + Math.random() * 25),
         1.5,
@@ -457,8 +536,9 @@ function GameContent() {
       scene.add(enemyGroup);
       enemiesRef.current.push({
         mesh: enemyGroup,
-        health: 3,
-        maxHealth: 3,
+        orbitalRing: ringMesh,
+        health: 4,
+        maxHealth: 4,
         velocity: new THREE.Vector3(),
         respawnTimer: 0
       });
@@ -479,7 +559,6 @@ function GameContent() {
     pipoHead.castShadow = true;
     pipoGroup.add(pipoHead);
 
-    // Ear meshes
     const pipoEarL = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), new THREE.MeshPhongMaterial({ color: 0xff7b9a }));
     pipoEarL.position.set(-0.28, 1.25, 0);
     pipoGroup.add(pipoEarL);
@@ -487,15 +566,15 @@ function GameContent() {
     pipoEarR.position.x = 0.28;
     pipoGroup.add(pipoEarR);
 
-    pipoGroup.position.set(-14, 2.2, -20); // stands on platform 2
+    pipoGroup.position.set(-14, 2.2, -20); // platform 2
     scene.add(pipoGroup);
     npcsRef.current.push({
       mesh: pipoGroup,
       name: "Pipo the Teddy Bear",
       dialogues: [
         "Hi! Welcome to our dream world! Otávio wanted me to tell you that you are his favorite adventure companion.",
-        "Use WASD keys to explore, and hold SHIFT to sprint across platforms!",
-        "Look around for floating platforms leading to the high castle target. You can do this!"
+        "Switch weapons using keys [1], [2], and [3]! Try the Minigun or Sniper!",
+        "Sneak using Ctrl/C or sprint using Shift. Jump across platforms using Spacebar!"
       ],
       currentDialogueIndex: 0
     });
@@ -521,61 +600,120 @@ function GameContent() {
     luluEarR.rotation.z = -Math.PI / 16;
     luluGroup.add(luluEarR);
 
-    luluGroup.position.set(14, 4.8, -20); // stands on platform 4
+    luluGroup.position.set(14, 4.8, -20); // platform 4
     scene.add(luluGroup);
     npcsRef.current.push({
       mesh: luluGroup,
       name: "Lulu the Bunny",
       dialogues: [
         "Aha! You made it all the way up here to my platform! Otávio told me he loves you more than all the stars.",
-        "Be careful with the angry purple shadow clouds! Shoot them down before they steal your energy.",
-        "Hold the RIGHT MOUSE BUTTON to zoom and aim down sights for far away targets!"
+        "The Minigun fires automatically just by holding Left Click, but it cannot aim down scope.",
+        "The Sniper zooms in extreme magnification and deals high impact, but has a long bolt-action cooldown!"
       ],
       currentDialogueIndex: 0
     });
 
-    // Cozy pink futuristic blaster gun model attached to camera
+    // Create Camera Weapon Attachment Holder Group
     const gunGroup = new THREE.Group();
-    
-    // Gun body
-    const bodyGeo = new THREE.BoxGeometry(0.08, 0.08, 0.25);
-    const bodyMat = new THREE.MeshPhongMaterial({ color: 0xffb6c1, shininess: 90 });
-    const gunBody = new THREE.Mesh(bodyGeo, bodyMat);
-    gunGroup.add(gunBody);
-
-    // Gun barrel
-    const barrelGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.16);
-    const barrelMat = new THREE.MeshPhongMaterial({ color: 0xf43f5e, emissive: 0x630012, shininess: 100 });
-    const gunBarrel = new THREE.Mesh(barrelGeo, barrelMat);
-    gunBarrel.rotation.x = Math.PI / 2;
-    gunBarrel.position.set(0, 0, -0.15);
-    gunGroup.add(gunBarrel);
-
-    // Gun handle
-    const handleGeo = new THREE.BoxGeometry(0.06, 0.12, 0.06);
-    const handleMat = new THREE.MeshPhongMaterial({ color: 0xdb2777, shininess: 50 });
-    const gunHandle = new THREE.Mesh(handleGeo, handleMat);
-    gunHandle.rotation.x = -Math.PI / 6;
-    gunHandle.position.set(0, -0.08, 0.05);
-    gunGroup.add(gunHandle);
-
-    // Scope Heart sight decoration
-    const scopeGeo = new THREE.BoxGeometry(0.03, 0.03, 0.03);
-    const scopeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const gunScope = new THREE.Mesh(scopeGeo, scopeMat);
-    gunScope.position.set(0, 0.055, -0.05);
-    gunGroup.add(gunScope);
-
-    // Put gun group as child of camera
-    gunGroup.position.set(0.18, -0.15, -0.32); // Rest position
-    gunGroup.rotation.y = Math.PI;
-    camera.add(gunGroup);
     scene.add(camera);
+    camera.add(gunGroup);
     gunGroupRef.current = gunGroup;
+
+    // --- GUN MODEL 0: Sleek Pink Blaster ---
+    const blaster = new THREE.Group();
+    const bBody = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.07, 0.22), new THREE.MeshPhongMaterial({ color: 0xffb6c1, shininess: 90 }));
+    blaster.add(bBody);
+    const bBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.14), new THREE.MeshPhongMaterial({ color: 0xf43f5e, emissive: 0x440008, shininess: 100 }));
+    bBarrel.rotation.x = Math.PI / 2;
+    bBarrel.position.set(0, 0, -0.13);
+    blaster.add(bBarrel);
+    const bHandle = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.1, 0.045), new THREE.MeshPhongMaterial({ color: 0xdb2777 }));
+    bHandle.rotation.x = -Math.PI / 6;
+    bHandle.position.set(0, -0.07, 0.04);
+    blaster.add(bHandle);
+    // Glowing side wings
+    const bWingL = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.04, 0.12), new THREE.MeshBasicMaterial({ color: 0xff66cc }));
+    bWingL.position.set(-0.04, 0.02, -0.04);
+    blaster.add(bWingL);
+    const bWingR = bWingL.clone();
+    bWingR.position.x = 0.04;
+    blaster.add(bWingR);
+
+    blaster.position.set(0, 0, 0);
+    blaster.rotation.y = Math.PI;
+    gunGroup.add(blaster);
+    blasterRef.current = blaster;
+
+    // --- GUN MODEL 1: Bulky Minigun with Rotating Barrels ---
+    const minigun = new THREE.Group();
+    // Heavy body frame
+    const mBody = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.22), new THREE.MeshPhongMaterial({ color: 0xe879f9, shininess: 80 }));
+    mBody.position.set(0, 0, 0.05);
+    minigun.add(mBody);
+    const mHandle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.05), new THREE.MeshPhongMaterial({ color: 0x701a75 }));
+    mHandle.position.set(0, 0.09, 0.08); // overhead handle grip
+    minigun.add(mHandle);
+
+    // Rotating barrels group
+    const barrelsGroup = new THREE.Group();
+    barrelsGroup.position.set(0, 0, -0.06);
+    minigun.add(barrelsGroup);
+    minigunBarrelsRef.current = barrelsGroup;
+
+    // 6 Barrel cylinders arranged in a circle
+    const barrelCount = 6;
+    const barrelRadius = 0.04;
+    for (let j = 0; j < barrelCount; j++) {
+      const angle = (j / barrelCount) * Math.PI * 2;
+      const bCyl = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.009, 0.009, 0.22, 6),
+        new THREE.MeshPhongMaterial({ color: 0xff66cc, shininess: 90 })
+      );
+      bCyl.rotation.x = Math.PI / 2;
+      bCyl.position.set(Math.cos(angle) * barrelRadius, Math.sin(angle) * barrelRadius, -0.11);
+      barrelsGroup.add(bCyl);
+    }
+    
+    minigun.position.set(0, 0, 0);
+    minigun.rotation.y = Math.PI;
+    gunGroup.add(minigun);
+    minigunRef.current = minigun;
+    minigun.visible = false;
+
+    // --- GUN MODEL 2: Sleek Long-barrel Sniper Rifle ---
+    const sniper = new THREE.Group();
+    const sBody = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.08, 0.32), new THREE.MeshPhongMaterial({ color: 0xa21caf, shininess: 90 }));
+    sniper.add(sBody);
+    const sStock = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.07, 0.18), new THREE.MeshPhongMaterial({ color: 0x701a75 }));
+    sStock.position.set(0, -0.04, 0.2); // buttstock
+    sniper.add(sStock);
+    const sBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.42, 6), new THREE.MeshPhongMaterial({ color: 0xf43f5e, shininess: 120 }));
+    sBarrel.rotation.x = Math.PI / 2;
+    sBarrel.position.set(0, 0.015, -0.34);
+    sniper.add(sBarrel);
+    // Sniper Scope tube on top
+    const sScope = new THREE.Group();
+    const scopeTube = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.16, 8), new THREE.MeshPhongMaterial({ color: 0xffffff }));
+    scopeTube.rotation.x = Math.PI / 2;
+    sScope.add(scopeTube);
+    sScope.position.set(0, 0.065, -0.06);
+    sniper.add(sScope);
+
+    sniper.position.set(0, 0, 0);
+    sniper.rotation.y = Math.PI;
+    gunGroup.add(sniper);
+    sniperRef.current = sniper;
+    sniper.visible = false;
 
     // Input handlers
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
+      
+      // PREVENT TAB CLOSE SHORTCUTS (e.g. CTRL+W crouching and moving)
+      if (e.ctrlKey && key === "w") {
+        e.preventDefault();
+      }
+
       if (key === "w") keysRef.current.w = true;
       if (key === "a") keysRef.current.a = true;
       if (key === "s") keysRef.current.s = true;
@@ -588,6 +726,11 @@ function GameContent() {
       if (key === "e") {
         handleNpcInteraction();
       }
+
+      // Handle weapon switching keys
+      if (key === "1") switchWeapon(0);
+      if (key === "2") switchWeapon(1);
+      if (key === "3") switchWeapon(2);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -609,18 +752,30 @@ function GameContent() {
 
     const handleMouseDown = (e: MouseEvent) => {
       if (document.pointerLockElement !== canvasRef.current) return;
+      
       if (e.button === 0) {
-        // Left Click: Fire
-        handleFire();
+        // Left Click
+        leftClickHeldRef.current = true;
+        
+        // Single shot weapons fire immediately on mousedown
+        const config = WEAPONS[activeWeaponIndexRef.current];
+        if (!config.automatic) {
+          handleFire();
+        }
       } else if (e.button === 2) {
-        // Right Click: Aim Down Sights (ADS)
-        isAimingRef.current = true;
-        setIsAiming(true);
+        // Right Click: Aim down sights (Only if weapon supports aiming)
+        const config = WEAPONS[activeWeaponIndexRef.current];
+        if (config.aimable) {
+          isAimingRef.current = true;
+          setIsAiming(true);
+        }
       }
     };
 
     const handleMouseUp = (e: MouseEvent) => {
-      if (e.button === 2) {
+      if (e.button === 0) {
+        leftClickHeldRef.current = false;
+      } else if (e.button === 2) {
         // Release Right Click: Stop aiming
         isAimingRef.current = false;
         setIsAiming(false);
@@ -628,8 +783,7 @@ function GameContent() {
     };
 
     const handleContextMenu = (e: MouseEvent) => {
-      // Prevent browser default menu so right-click is fully captured
-      e.preventDefault();
+      e.preventDefault(); // Block right-click menu
     };
 
     const handleResize = () => {
@@ -668,7 +822,6 @@ function GameContent() {
   const handleNpcInteraction = () => {
     if (!cameraRef.current) return;
 
-    // Find if player is close to any NPC
     const playerPos = cameraRef.current.position;
     let closestNpc: NPC | null = null;
     let minDist = 3.8;
@@ -686,7 +839,6 @@ function GameContent() {
       const npc = closestNpc as NPC;
       setNpcName(npc.name);
       setNpcDialogue(npc.dialogues[npc.currentDialogueIndex]);
-      // Advance to next dialogue sequence
       npc.currentDialogueIndex = (npc.currentDialogueIndex + 1) % npc.dialogues.length;
     }
   };
@@ -695,11 +847,28 @@ function GameContent() {
   const handleCloseDialogue = () => {
     setNpcDialogue(null);
     setNpcName(null);
-    // Re-lock mouse coordinate tracker
     lockPointer();
   };
 
-  // Trigger red flash when taking hits
+  // Weapon Switcher
+  const switchWeapon = (index: number) => {
+    if (index === activeWeaponIndexRef.current || gameState !== "playing") return;
+    
+    // Stop aiming during weapon swap
+    isAimingRef.current = false;
+    setIsAiming(false);
+
+    activeWeaponIndexRef.current = index;
+    setActiveWeaponIndex(index);
+    weaponCooldownRef.current = 0.35; // weapon draw delay cooldown
+
+    // Toggle 3D mesh visibility
+    if (blasterRef.current) blasterRef.current.visible = index === 0;
+    if (minigunRef.current) minigunRef.current.visible = index === 1;
+    if (sniperRef.current) sniperRef.current.visible = index === 2;
+  };
+
+  // Trigger damage overlay red flash
   const triggerDamageFlash = () => {
     setRedScreenFlash(true);
     setTimeout(() => setRedScreenFlash(false), 220);
@@ -781,15 +950,21 @@ function GameContent() {
 
   // Raycast Firing Check
   const handleFire = () => {
-    if (gameState !== "playing" || !isLockedRef.current || npcDialogue !== null) return;
+    if (gameState !== "playing" || !isLockedRef.current || npcDialogue !== null || weaponCooldownRef.current > 0) return;
 
+    const config = WEAPONS[activeWeaponIndexRef.current];
+
+    // Trigger Synth audio
     synthShootSound();
     setShots((prev) => prev + 1);
 
-    // Recoil offsets
-    gunRecoilRef.current = 0.07;
-    // Kick camera pitch up slightly (screen recoil)
-    cameraTargetKickRef.current = isAimingRef.current ? 0.015 : 0.035;
+    // Set draw cooldown based on weapons
+    weaponCooldownRef.current = config.cooldown;
+
+    // Apply gun recoil push back
+    gunRecoilRef.current = config.recoil;
+    // Kick camera pitch up dynamically (screen recoil)
+    cameraTargetKickRef.current = isAimingRef.current ? config.recoil * 0.25 : config.recoil * 0.6;
 
     if (!cameraRef.current || !targetsGroupRef.current) return;
 
@@ -797,7 +972,7 @@ function GameContent() {
     const center = new THREE.Vector2(0, 0);
     raycaster.setFromCamera(center, cameraRef.current);
 
-    // Target mesh lists
+    // Target lists
     const targets = targetsGroupRef.current.children;
     const enemyMeshes = enemiesRef.current
       .filter((e) => e.respawnTimer <= 0)
@@ -812,7 +987,7 @@ function GameContent() {
       const hit = intersects[0];
       hitPoint.copy(hit.point);
 
-      // Check if hit object belongs to target group or an enemy group
+      // Check hit entity
       let hitTargetMesh = targets.find((t) => t === hit.object || t.children.includes(hit.object));
       let hitEnemy = enemiesRef.current.find((e) => 
         e.mesh === hit.object || 
@@ -821,12 +996,11 @@ function GameContent() {
       );
 
       if (hitTargetMesh) {
-        // Heart target hit!
         synthHitSound();
         triggerExplosion(hit.point, false);
         setPoints((prev) => prev + 100);
 
-        // Respawn heart target inside boundaries
+        // Respawn heart target inside bounds
         hitTargetMesh.position.set(
           (Math.random() - 0.5) * (MAP_SIZE - 20),
           1.5 + Math.random() * 4.5,
@@ -835,31 +1009,26 @@ function GameContent() {
         hitTargetMesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
 
       } else if (hitEnemy) {
-        // Enemy cloud hit!
         synthHitSound();
-        hitEnemy.health -= 1;
+        // Sniper deals double damage
+        const damage = config.name === "Sniper" ? 2 : 1;
+        hitEnemy.health -= damage;
 
-        // Damage particles
         triggerExplosion(hit.point, true);
 
         if (hitEnemy.health <= 0) {
-          // Enemy killed
           setPoints((prev) => prev + 250);
-          
-          // Large explosion
           triggerExplosion(hitEnemy.mesh.position, true);
 
-          // Put enemy in respawn queue (invisible and moves away)
-          hitEnemy.respawnTimer = 4.0; // 4 seconds respawn cooldown
+          // Put enemy in respawn queue
+          hitEnemy.respawnTimer = 4.0;
           hitEnemy.mesh.position.set(9999, -9999, 9999);
         }
       }
     } else {
-      // Calculate point far in front of camera
       hitPoint.copy(cameraRef.current.position).addScaledVector(raycaster.ray.direction, 50);
     }
 
-    // Render tracer beam line
     createBulletTracer(hitPoint);
   };
 
@@ -870,9 +1039,12 @@ function GameContent() {
       setPoints(0);
       setHealth(100);
       setTimeLeft(60);
+      setActiveWeaponIndex(0);
+      activeWeaponIndexRef.current = 0;
       playerPositionYRef.current = 0;
       playerVelocityYRef.current = 0;
       isGroundedRef.current = true;
+      horizontalVelocityRef.current.set(0, 0, 0);
       lockPointer();
     } else if (gameState === "playing") {
       if (!isLocked) {
@@ -899,12 +1071,17 @@ function GameContent() {
         const gunGroup = gunGroupRef.current;
         const renderer = rendererRef.current;
 
+        // Decrease weapon firing cooldown
+        if (weaponCooldownRef.current > 0) {
+          weaponCooldownRef.current -= delta;
+        }
+
         // --- 1. Mouse coordinate pans (FPS Camera Look) ---
         if (isLockedRef.current && npcDialogue === null) {
           const move = mouseMoveRef.current;
           
-          // Apply mouse multiplier (decreased under ADS zoom)
-          const sens = isAimingRef.current ? 0.0008 : 0.0018;
+          // Apply aiming sensitivity multiplier
+          const sens = isAimingRef.current ? 0.0006 : 0.0018;
           camera.rotation.y -= move.movementX * sens;
           
           // Track target recoil kick plus manual mouse look
@@ -918,9 +1095,8 @@ function GameContent() {
         // Apply visual Recoil Kickback decay
         if (cameraTargetKickRef.current > 0.001) {
           camera.rotation.x += cameraTargetKickRef.current;
-          // Slowly push the kick recovery buffer
           cameraKickRef.current += cameraTargetKickRef.current;
-          cameraTargetKickRef.current = 0; // reset single-fire kick trigger
+          cameraTargetKickRef.current = 0;
         }
         
         // Recover camera look back down towards rest position
@@ -930,58 +1106,62 @@ function GameContent() {
           cameraKickRef.current -= recovery;
         }
 
-        // --- 2. JUMPING, SNEAKING, & RUNNING PHYSICS ---
+        // --- 2. MOVEMENT INERTIA, SNEAK, RUN, VIEW BOBBING & LANDING SHOCK ---
         const keys = keysRef.current;
         
-        // Sneak modifier
+        // Sneak camera Y crouch logic
         const isSneaking = keys.ctrl;
         const targetEyeHeight = isSneaking ? 0.8 : 1.6;
-        
-        // Smoothly interpolate camera height (eye level lerp)
         const eyeLevelLerpSpeed = 12.0;
+
+        // Smoothly interpolate vertical eye height
         camera.position.y += (playerPositionYRef.current + targetEyeHeight - camera.position.y) * eyeLevelLerpSpeed * delta;
 
         // Base walking speeds
-        let currentWalkSpeed = 6.0; // standard units/sec
+        let currentWalkSpeed = 6.0;
         if (keys.shift && !isSneaking && isGroundedRef.current) {
-          currentWalkSpeed = 9.8; // Running sprint
+          currentWalkSpeed = 9.8; // Sprint
         } else if (isSneaking) {
-          currentWalkSpeed = 3.0; // Sneaking crawl
+          currentWalkSpeed = 3.0; // Sneak
         }
         if (isAimingRef.current) {
-          currentWalkSpeed *= 0.55; // ADS speed reduction
+          currentWalkSpeed *= 0.55; // ADS slowdown
         }
 
-        const moveVector = new THREE.Vector3();
-        if (keys.w) moveVector.z -= 1.0;
-        if (keys.s) moveVector.z += 1.0;
-        if (keys.a) moveVector.x -= 1.0;
-        if (keys.d) moveVector.x += 1.0;
+        const targetVector = new THREE.Vector3();
+        if (keys.w) targetVector.z -= 1.0;
+        if (keys.s) targetVector.z += 1.0;
+        if (keys.a) targetVector.x -= 1.0;
+        if (keys.d) targetVector.x += 1.0;
 
-        moveVector.normalize().multiplyScalar(currentWalkSpeed * delta);
-        // Apply camera yaw (Y axis) to movement so it aligns with looking directions
-        moveVector.applyEuler(new THREE.Euler(0, camera.rotation.y, 0));
+        targetVector.normalize().multiplyScalar(currentWalkSpeed);
+        // Apply camera yaw (Y axis) to target movement vector
+        targetVector.applyEuler(new THREE.Euler(0, camera.rotation.y, 0));
+
+        // Smooth horizontal velocity (Inertia physics slide)
+        const accel = isGroundedRef.current ? 12.0 : 3.0; // Less control in mid-air
+        horizontalVelocityRef.current.x += (targetVector.x - horizontalVelocityRef.current.x) * accel * delta;
+        horizontalVelocityRef.current.z += (targetVector.z - horizontalVelocityRef.current.z) * accel * delta;
 
         // Store old coordinates for slide collision
         const oldX = camera.position.x;
         const oldZ = camera.position.z;
 
-        camera.position.x += moveVector.x;
-        camera.position.z += moveVector.z;
+        camera.position.x += horizontalVelocityRef.current.x * delta;
+        camera.position.z += horizontalVelocityRef.current.z * delta;
 
         // Keep inside outer map bounds
         const boundaryLimit = (MAP_SIZE / 2) - 1.5;
         camera.position.x = Math.max(-boundaryLimit, Math.min(boundaryLimit, camera.position.x));
         camera.position.z = Math.max(-boundaryLimit, Math.min(boundaryLimit, camera.position.z));
 
-        // Wall collisions check (squeezed past platform borders)
+        // Wall AABB collisions check (sliding off platform borders)
         for (const p of PLATFORMS) {
           const topY = p.y + p.h / 2;
           const bottomY = p.y - p.h / 2;
 
-          // If player's Y levels intersect with platform height
           if (playerPositionYRef.current < topY - 0.15 && playerPositionYRef.current + 1.8 > bottomY) {
-            const buffer = 0.55; // player radius bounds
+            const buffer = 0.55;
             const xMin = p.x - p.w / 2 - buffer;
             const xMax = p.x + p.w / 2 + buffer;
             const zMin = p.z - p.d / 2 - buffer;
@@ -989,7 +1169,6 @@ function GameContent() {
 
             if (camera.position.x > xMin && camera.position.x < xMax &&
                 camera.position.z > zMin && camera.position.z < zMax) {
-              // Intersecting! Slide collision
               camera.position.x = oldX;
               if (camera.position.x > xMin && camera.position.x < xMax &&
                   camera.position.z > zMin && camera.position.z < zMax) {
@@ -999,13 +1178,13 @@ function GameContent() {
           }
         }
 
-        // Apply Vertical Physics (Gravity & Jumping)
+        // Apply Vertical Physics (Gravity & Platform Landing Shock)
+        const wasGrounded = isGroundedRef.current;
         if (!isGroundedRef.current) {
-          // Apply gravity decay
-          playerVelocityYRef.current -= 24 * delta;
+          playerVelocityYRef.current -= 24 * delta; // Gravity fall
           playerPositionYRef.current += playerVelocityYRef.current * delta;
 
-          // Floor level landing check
+          // Floor landing
           if (playerPositionYRef.current <= 0) {
             playerPositionYRef.current = 0;
             playerVelocityYRef.current = 0;
@@ -1013,7 +1192,7 @@ function GameContent() {
           }
 
           // Platform top landing check
-          if (playerVelocityYRef.current <= 0) { // falling down
+          if (playerVelocityYRef.current <= 0) {
             for (const p of PLATFORMS) {
               const topY = p.y + p.h / 2;
               const buffer = 0.35;
@@ -1024,7 +1203,6 @@ function GameContent() {
 
               if (camera.position.x > xMin && camera.position.x < xMax &&
                   camera.position.z > zMin && camera.position.z < zMax) {
-                // If feet intersect top surface
                 if (playerPositionYRef.current >= topY - 0.3 && playerPositionYRef.current + playerVelocityYRef.current * delta <= topY + 0.15) {
                   playerPositionYRef.current = topY;
                   playerVelocityYRef.current = 0;
@@ -1035,7 +1213,7 @@ function GameContent() {
             }
           }
         } else {
-          // Grounded walk off platform check
+          // Walked off check
           if (playerPositionYRef.current > 0) {
             let stillOnPlatform = false;
             for (const p of PLATFORMS) {
@@ -1058,26 +1236,61 @@ function GameContent() {
             }
           }
 
-          // Trigger Jump Action
+          // Jump Action trigger
           if (keys.space && npcDialogue === null) {
-            playerVelocityYRef.current = 8.5; // Jump vertical velocity force
+            playerVelocityYRef.current = 8.5; // Vertical jump impulse
             isGroundedRef.current = false;
           }
         }
 
-        // --- 3. AIM DOWN SIGHTS (ADS) ZOOM LERP ---
-        const targetFov = isAimingRef.current ? 42 : 70;
+        // Trigger landing view dip shock
+        if (!wasGrounded && isGroundedRef.current) {
+          landingShockRef.current = -Math.min(0.22, Math.abs(playerVelocityYRef.current) * 0.022);
+        }
+        
+        // Decay landing shock back to rest
+        if (Math.abs(landingShockRef.current) > 0.001) {
+          landingShockRef.current += (0 - landingShockRef.current) * 9.5 * delta;
+          camera.position.y += landingShockRef.current;
+        }
+
+        // View Bobbing (Camera sway movement simulation)
+        const currentSpeed = horizontalVelocityRef.current.length();
+        if (isGroundedRef.current && currentSpeed > 0.1) {
+          bobTimeRef.current += currentSpeed * delta * 1.5;
+          const bobX = Math.cos(bobTimeRef.current * 0.5) * 0.025;
+          const bobY = Math.sin(bobTimeRef.current) * 0.038;
+          
+          camera.position.x += bobX;
+          camera.position.y += bobY;
+        }
+
+        // --- 3. AUTOMATIC WEAPON HOLD TO FIRE LOOP (Minigun) ---
+        const activeConfig = WEAPONS[activeWeaponIndexRef.current];
+        if (activeConfig.automatic && leftClickHeldRef.current && weaponCooldownRef.current <= 0) {
+          handleFire();
+        }
+
+        // --- 4. AIM DOWN SIGHTS (ADS) ZOOM LERP ---
+        const targetFov = isAimingRef.current ? activeConfig.adsFov : 70;
         if (Math.abs(camera.fov - targetFov) > 0.1) {
           camera.fov += (targetFov - camera.fov) * 15 * delta;
           camera.updateProjectionMatrix();
         }
 
-        // Slide gun alignment smoothly (Centered for ADS, right-offset for normal)
+        // Slide gun alignment smoothly
         if (gunGroup) {
           const targetX = isAimingRef.current ? 0.0 : 0.18;
           const targetY = isAimingRef.current ? -0.11 : -0.15;
           const restZ = -0.32;
           
+          // Sniper model is hidden entirely during scoped aim
+          if (activeWeaponIndexRef.current === 2 && isAimingRef.current) {
+            gunGroup.visible = false;
+          } else {
+            gunGroup.visible = true;
+          }
+
           gunGroup.position.x += (targetX - gunGroup.position.x) * 12 * delta;
           gunGroup.position.y += (targetY - gunGroup.position.y) * 12 * delta;
 
@@ -1090,9 +1303,15 @@ function GameContent() {
             gunGroup.position.z += (restZ - gunGroup.position.z) * 15 * delta;
             gunGroup.rotation.x += (0 - gunGroup.rotation.x) * 15 * delta;
           }
+
+          // Minigun barrel rotation animation
+          if (activeWeaponIndexRef.current === 1 && minigunBarrelsRef.current) {
+            const rotSpeed = leftClickHeldRef.current && weaponCooldownRef.current > 0 ? 18.0 : 2.0;
+            minigunBarrelsRef.current.rotation.z += rotSpeed * delta;
+          }
         }
 
-        // --- 4. NPC PROXIMITY DETECTION ---
+        // --- 5. NPC PROXIMITY DETECTION ---
         let closestPrompt: string | null = null;
         npcsRef.current.forEach((npc) => {
           const npcPos = npc.mesh.position;
@@ -1103,13 +1322,13 @@ function GameContent() {
         });
         setNearbyNpcPrompt(closestPrompt);
 
-        // --- 5. HOSTILE ENEMY AI SIMULATION ---
+        // --- 6. HOSTILE ENEMY AI SIMULATION ---
+        const elapsed = clock.getElapsedTime();
         const enemies = enemiesRef.current;
         enemies.forEach((enemy) => {
           if (enemy.respawnTimer > 0) {
             enemy.respawnTimer -= delta;
             if (enemy.respawnTimer <= 0) {
-              // Respawn enemy at random coordinates
               enemy.health = enemy.maxHealth;
               enemy.mesh.position.set(
                 (Math.random() > 0.5 ? 1 : -1) * (20 + Math.random() * 25),
@@ -1122,32 +1341,39 @@ function GameContent() {
 
           const enemyPos = enemy.mesh.position;
           
-          // Face the player camera YXZ
+          // Face the player YXZ
           enemy.mesh.lookAt(camera.position.x, enemyPos.y, camera.position.z);
 
-          // Drift/chase player camera coordinates
-          const chaseSpeed = 2.2; // units per sec
+          // Rotate the outer orbital ring around core
+          enemy.orbitalRing.rotation.x += delta * 2.0;
+          enemy.orbitalRing.rotation.y += delta * 3.2;
+
+          // Pulse core scale (Breathing scale animation)
+          const coreScale = 1.0 + Math.sin(elapsed * 4.0 + enemy.mesh.id) * 0.08;
+          enemy.mesh.scale.set(coreScale, coreScale, coreScale);
+
+          // Chase player coordinate
+          const chaseSpeed = 2.2;
           const dir = new THREE.Vector3().subVectors(camera.position, enemyPos);
-          // Keep Y floating level
           dir.y = 0;
           dir.normalize();
 
           enemy.mesh.position.addScaledVector(dir, chaseSpeed * delta);
-          // Wave bobbing height
-          enemy.mesh.position.y = 1.3 + Math.sin(clock.getElapsedTime() * 2.0 + enemy.mesh.id) * 0.2;
 
-          // Check if touches player (melee damage radius <= 1.4)
+          // Bob enemy up and down gently
+          enemy.mesh.position.y = 1.3 + Math.sin(elapsed * 2.0 + enemy.mesh.id) * 0.2;
+
+          // Melee touch player damage
           const distToPlayer = camera.position.distanceTo(enemyPos);
           if (distToPlayer < 1.4) {
-            // Apply damage if not in cooldown
             setHealth((prev) => {
               if (prev > 0) {
                 synthDamageSound();
                 triggerDamageFlash();
-                // Melee recoil: bounce player backwards
+                // Knockback player backwards
                 const pushDir = new THREE.Vector3().subVectors(camera.position, enemyPos);
                 pushDir.y = 0;
-                pushDir.normalize().multiplyScalar(2.0);
+                pushDir.normalize().multiplyScalar(2.2);
                 camera.position.add(pushDir);
 
                 const nextHealth = prev - 15;
@@ -1166,7 +1392,7 @@ function GameContent() {
           }
         });
 
-        // --- 6. UPDATE BULLET TRACER LIFESPANS ---
+        // --- 7. UPDATE BULLET TRACER LIFESPANS ---
         const tracers = tracersRef.current;
         for (let i = tracers.length - 1; i >= 0; i--) {
           const t = tracers[i];
@@ -1186,12 +1412,12 @@ function GameContent() {
           }
         }
 
-        // --- 7. UPDATE EXPLOSION PARTICLE PHYSICS ---
+        // --- 8. UPDATE EXPLOSION PARTICLE PHYSICS ---
         const particles = particlesRef.current;
         for (let i = particles.length - 1; i >= 0; i--) {
           const p = particles[i];
           p.mesh.position.addScaledVector(p.velocity, delta);
-          p.velocity.y -= 9.8 * delta; // gravity pull
+          p.velocity.y -= 9.8 * delta;
           p.life -= delta * 0.95;
 
           if (p.life <= 0) {
@@ -1209,9 +1435,8 @@ function GameContent() {
           }
         }
 
-        // --- 8. TARGET BOB & SPIN ---
+        // --- 9. TARGET BOB & SPIN ---
         if (targetsGroup) {
-          const elapsed = clock.getElapsedTime();
           targetsGroup.children.forEach((mesh, index) => {
             mesh.rotation.y += delta * (0.45 + (index % 3) * 0.08);
             mesh.rotation.x += delta * 0.18;
@@ -1235,7 +1460,7 @@ function GameContent() {
     };
   }, [gameState, npcDialogue]);
 
-  // Restart trigger
+  // Restart game triggers
   const handleResetGame = () => {
     setPoints(0);
     setShots(0);
@@ -1243,20 +1468,23 @@ function GameContent() {
     setTimeLeft(60);
     setNpcDialogue(null);
     setNpcName(null);
+    setActiveWeaponIndex(0);
+    activeWeaponIndexRef.current = 0;
     setGameState("playing");
     playerPositionYRef.current = 0;
     playerVelocityYRef.current = 0;
     isGroundedRef.current = true;
+    horizontalVelocityRef.current.set(0, 0, 0);
     setTimeout(lockPointer, 150);
   };
 
   // Accuracy calculation
   const getAccuracy = () => {
     if (shots === 0) return 0;
-    return Math.round((points / (shots * 100)) * 100); // normalized approx accuracy
+    return Math.round((points / (shots * 100)) * 100);
   };
 
-  // Victory / Ending message based on credentials
+  // Victory ending dialogue generators
   const getVictoryMessage = () => {
     if (health <= 0) {
       return "Game Over! You were overwhelmed by the gloom shadow clouds, but love always conquers! Try again to clean the map! 💖";
@@ -1283,6 +1511,33 @@ function GameContent() {
           className="w-full h-full block focus:outline-none" 
         />
       </div>
+
+      {/* Full screen sniper scope overlay when aiming with sniper */}
+      {isAiming && activeWeaponIndex === 2 && gameState === "playing" && (
+        <div className="absolute inset-0 z-15 pointer-events-none flex items-center justify-center">
+          {/* Black bars on left/right */}
+          <div className="absolute left-0 top-0 bottom-0 w-1/5 bg-black" />
+          <div className="absolute right-0 top-0 bottom-0 w-1/5 bg-black" />
+          
+          {/* Sniper crosshair circle panel */}
+          <div className="w-[80vh] h-[80vh] max-w-full max-h-full rounded-full border-4 border-zinc-800 shadow-[0_0_0_2000px_rgba(0,0,0,0.85)] flex items-center justify-center relative overflow-hidden bg-transparent">
+            {/* Horizontal sniper line */}
+            <div className="absolute w-full h-0.5 bg-black/80" />
+            {/* Vertical sniper line */}
+            <div className="absolute h-full w-0.5 bg-black/80" />
+            
+            {/* Center target dot */}
+            <div className="w-1.5 h-1.5 bg-red-600 rounded-full z-10" />
+
+            {/* Scope reflection shadow filter */}
+            <div className="absolute inset-0 bg-radial-gradient" 
+                 style={{
+                   background: "radial-gradient(circle, transparent 70%, rgba(0,0,0,0.4) 100%)"
+                 }} 
+            />
+          </div>
+        </div>
+      )}
 
       {/* Red screen flash when taking damage */}
       <div 
@@ -1344,36 +1599,57 @@ function GameContent() {
             </div>
           )}
 
-          {/* Center Crosshair (CS Sight) */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="relative flex items-center justify-center">
-              {/* Outer circle sight when aiming, core dot otherwise */}
-              <div className={`rounded-full border border-pink-500 transition-all duration-300 ${
-                isAiming 
-                  ? "w-8 h-8 bg-pink-500/10 shadow-[0_0_12px_rgba(244,63,94,0.5)] border-dashed animate-spin-slow"
-                  : "w-2.5 h-2.5 bg-pink-500 border-white/60 shadow-[0_0_8px_rgba(244,63,94,0.8)]"
-              }`} />
-              {!isAiming && (
-                <>
-                  <div className="absolute w-5 h-0.5 bg-pink-500/40 -left-6" />
-                  <div className="absolute w-5 h-0.5 bg-pink-500/40 -right-6" />
-                  <div className="absolute w-0.5 h-5 bg-pink-500/40 -top-6" />
-                  <div className="absolute w-0.5 h-5 bg-pink-500/40 -bottom-6" />
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Bottom HUD layout */}
-          <div className="w-full flex flex-col items-center gap-2">
-            {!isLocked && npcDialogue === null && (
-              <div className="bg-black/85 border border-pink-500/35 px-4 py-2.5 rounded-2xl text-xs text-pink-300/90 font-bold shadow-lg animate-pulse pointer-events-auto cursor-pointer" onClick={lockPointer}>
-                ⚠️ Click screen to lock mouse and play!
+          {/* Center Crosshair (aiming down sights hides default crosshair on Sniper) */}
+          {(!isAiming || activeWeaponIndex !== 2) && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="relative flex items-center justify-center">
+                <div className={`rounded-full border border-pink-500 transition-all duration-300 ${
+                  isAiming 
+                    ? "w-8 h-8 bg-pink-500/10 shadow-[0_0_12px_rgba(244,63,94,0.5)] border-dashed animate-spin-slow"
+                    : "w-2.5 h-2.5 bg-pink-500 border-white/60 shadow-[0_0_8px_rgba(244,63,94,0.8)]"
+                }`} />
+                {!isAiming && (
+                  <>
+                    <div className="absolute w-5 h-0.5 bg-pink-500/40 -left-6" />
+                    <div className="absolute w-5 h-0.5 bg-pink-500/40 -right-6" />
+                    <div className="absolute w-0.5 h-5 bg-pink-500/40 -top-6" />
+                    <div className="absolute w-0.5 h-5 bg-pink-500/40 -bottom-6" />
+                  </>
+                )}
               </div>
-            )}
+            </div>
+          )}
+
+          {/* Bottom HUD layout: Weapon selection indicator */}
+          <div className="w-full flex justify-between items-end pointer-events-auto">
+            {/* Active Weapon Indicator */}
+            <div className="bg-black/60 backdrop-blur-md border border-pink-500/25 px-5 py-3 rounded-2xl flex items-center gap-3">
+              <div>
+                <div className="text-[10px] uppercase font-bold text-pink-300 font-mono tracking-wider">Weapon</div>
+                <div className="text-sm font-black text-white uppercase tracking-wider">
+                  {WEAPONS[activeWeaponIndex].name}
+                </div>
+              </div>
+              <div className="flex gap-1.5 pl-2 border-l border-zinc-800">
+                {[0, 1, 2].map((idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => switchWeapon(idx)}
+                    className={`w-7 h-7 rounded-lg text-xs font-bold font-mono transition-all flex items-center justify-center border ${
+                      activeWeaponIndex === idx
+                        ? "bg-pink-500 border-pink-400 text-white shadow-md shadow-pink-500/20"
+                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    {idx + 1}
+                  </button>
+                ))}
+              </div>
+            </div>
             
-            <div className="bg-black/55 px-5 py-2.5 rounded-xl border border-zinc-800 text-[10px] md:text-xs text-zinc-300 font-mono tracking-wide">
-              WASD: Walk • Shift: Run • Space: Jump • Ctrl/C: Sneak • Right Click: Hold to Aim • Left Click: Shoot
+            <div className="bg-black/55 px-5 py-2.5 rounded-xl border border-zinc-800 text-[10px] md:text-xs text-zinc-300 font-mono tracking-wide max-w-lg text-center leading-relaxed">
+              WASD: Walk • Shift: Run • Space: Jump • Ctrl/C: Crouch • Keys [1, 2, 3]: Swap Weapons <br />
+              Right Click: Zoom Aim (Blaster/Sniper) • Left Click: Shoot (Minigun is Full-Auto!)
             </div>
           </div>
         </div>
@@ -1431,13 +1707,14 @@ function GameContent() {
             <div className="p-4 rounded-2xl bg-zinc-950/70 border border-zinc-800 text-left space-y-2 max-h-52 overflow-y-auto">
               <h3 className="text-xs font-bold text-pink-400 uppercase font-mono">Controls & Bindings</h3>
               <ul className="text-[11px] text-zinc-300 font-mono space-y-1 list-disc list-inside">
-                <li><span className="text-white font-bold">W, A, S, D</span> — Walk around map</li>
+                <li><span className="text-white font-bold">W, A, S, D</span> — Walk with slide inertia</li>
                 <li><span className="text-white font-bold">Shift</span> — Hold to Sprint / Run</li>
                 <li><span className="text-white font-bold">Spacebar</span> — Jump onto platforms</li>
-                <li><span className="text-white font-bold">Ctrl / C</span> — Crawl / Sneak</li>
-                <li><span className="text-white font-bold">Right Click</span> — Hold to AIM Down Sights (ADS)</li>
-                <li><span className="text-white font-bold">Left Click</span> — Fire hot-pink blasters</li>
-                <li><span className="text-white font-bold">E Key</span> — Speak to closest Teddy or Bunny</li>
+                <li><span className="text-white font-bold">Ctrl / C</span> — Crouch / Sneak</li>
+                <li><span className="text-white font-bold">Keys [1, 2, 3]</span> — Swap active guns</li>
+                <li><span className="text-white font-bold">Right Click</span> — Aim Zoom (Sniper gets scope overlay!)</li>
+                <li><span className="text-white font-bold">Left Click</span> — Fire blasters (Minigun is Full-Auto!)</li>
+                <li><span className="text-white font-bold">E Key</span> — Speak to Teddy Pipo or Bunny Lulu</li>
               </ul>
             </div>
 
