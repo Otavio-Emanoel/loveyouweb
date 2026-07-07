@@ -52,6 +52,28 @@ const PLATFORMS = [
   { x: 0, z: 28, y: 4.5, w: 12, d: 10, h: 1.5 }     // High Platform (top surface at 5.25)
 ];
 
+// Staircase step blocks to ease height navigation
+const STEPS = [
+  // Stairs leading from ground to Platform 1 (Y=1.0)
+  { x: 0, z: -5.2, y: 0.15, w: 4, d: 1.2, h: 0.3 },
+  { x: 0, z: -6.4, y: 0.45, w: 4, d: 1.2, h: 0.3 },
+  { x: 0, z: -7.6, y: 0.75, w: 4, d: 1.2, h: 0.3 },
+
+  // Steps leading from Platform 1 (Y=1.0) to Platform 2 (Y=2.2)
+  { x: -5, z: -15, y: 0.65, w: 2.2, d: 2.2, h: 1.3 },
+  { x: -10, z: -17, y: 0.88, w: 2.2, d: 2.2, h: 1.76 },
+
+  // Steps leading from Platform 1 (Y=1.0) to Platform 4 (Y=4.8)
+  { x: 5, z: -15, y: 0.9, w: 2.2, d: 2.2, h: 1.8 },
+  { x: 8, z: -17, y: 1.35, w: 2.2, d: 2.2, h: 2.7 },
+  { x: 11, z: -19, y: 1.85, w: 2.2, d: 2.2, h: 3.7 },
+
+  // Steps leading from ground to High Platform (Y=5.25)
+  { x: -5, z: 22, y: 0.75, w: 2.5, d: 2.5, h: 1.5 },
+  { x: -5, z: 25, y: 1.5, w: 2.5, d: 2.5, h: 3.0 },
+  { x: -5, z: 28, y: 2.25, w: 2.5, d: 2.5, h: 4.5 }
+];
+
 // Weapon parameters
 interface WeaponConfig {
   name: string;
@@ -88,7 +110,7 @@ const WEAPONS: WeaponConfig[] = [
   {
     name: "Sniper",
     cooldown: 1.5,
-    adsFov: 15, // Extreme scope zoom
+    adsFov: 15, // Scoped magnification
     recoil: 0.22,
     automatic: false,
     aimable: true,
@@ -203,12 +225,12 @@ function GameContent() {
       const gain = ctx.createGain();
       
       osc1.type = "sine";
-      osc1.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-      osc1.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.25); // C6
+      osc1.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc1.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.25);
       
       osc2.type = "triangle";
-      osc2.frequency.setValueAtTime(659.25, ctx.currentTime); // E5
-      osc2.frequency.exponentialRampToValueAtTime(1318.50, ctx.currentTime + 0.25); // E6
+      osc2.frequency.setValueAtTime(659.25, ctx.currentTime);
+      osc2.frequency.exponentialRampToValueAtTime(1318.50, ctx.currentTime + 0.25);
       
       gain.gain.setValueAtTime(0.2, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
@@ -355,7 +377,6 @@ function GameContent() {
     scene.background = new THREE.Color(0x080205);
     sceneRef.current = scene;
 
-    // Fog for depth
     scene.fog = new THREE.FogExp2(0x080205, 0.022);
 
     const camera = new THREE.PerspectiveCamera(
@@ -365,7 +386,7 @@ function GameContent() {
       1000
     );
     camera.rotation.order = "YXZ";
-    camera.position.set(0, 1.6, 0); // Player height
+    camera.position.set(0, 1.6, 0); // Player eye height
     cameraRef.current = camera;
 
     // WebGL Renderer
@@ -396,11 +417,9 @@ function GameContent() {
     gridHelper.position.y = -0.48;
     scene.add(gridHelper);
 
-    // Build Platform Meshes (Physical Translucent Materials + Glowing Outlines)
+    // Build Platform Meshes (Physical Glassmorphic Material + Glowing Neon Outlines)
     PLATFORMS.forEach((p) => {
       const pGeo = new THREE.BoxGeometry(p.w, p.h, p.d);
-      
-      // Beautiful glassmorphic platform
       const pMat = new THREE.MeshPhysicalMaterial({
         color: 0xec4899,
         emissive: 0x1e0310,
@@ -418,7 +437,7 @@ function GameContent() {
       mesh.castShadow = true;
       scene.add(mesh);
 
-      // Glowing outline border edges
+      // Border outline
       const edges = new THREE.EdgesGeometry(pGeo);
       const borderLine = new THREE.LineSegments(
         edges,
@@ -428,7 +447,37 @@ function GameContent() {
       scene.add(borderLine);
     });
 
-    // Outer boundary walls (neon frame)
+    // Build Staircase Steps (Slightly smaller, layered glass blocks with outlines)
+    STEPS.forEach((s) => {
+      const sGeo = new THREE.BoxGeometry(s.w, s.h, s.d);
+      const sMat = new THREE.MeshPhysicalMaterial({
+        color: 0xdb2777,
+        emissive: 0x1a020e,
+        roughness: 0.12,
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.65,
+        transmission: 0.55,
+        thickness: 1.0,
+      });
+
+      const mesh = new THREE.Mesh(sGeo, sMat);
+      mesh.position.set(s.x, s.y, s.z);
+      mesh.receiveShadow = true;
+      mesh.castShadow = true;
+      scene.add(mesh);
+
+      // Steps outlines
+      const edges = new THREE.EdgesGeometry(sGeo);
+      const borderLine = new THREE.LineSegments(
+        edges,
+        new THREE.LineBasicMaterial({ color: 0xff66cc, opacity: 0.6, transparent: true })
+      );
+      borderLine.position.copy(mesh.position);
+      scene.add(borderLine);
+    });
+
+    // Outer walls
     const boundaryGeo = new THREE.BoxGeometry(1, 12, MAP_SIZE);
     const boundaryMat = new THREE.MeshPhongMaterial({ color: 0x15030f, shininess: 10 });
     const wallLeft = new THREE.Mesh(boundaryGeo, boundaryMat);
@@ -462,12 +511,12 @@ function GameContent() {
     pointLight.position.set(0, 8, 0);
     scene.add(pointLight);
 
-    // Target Group Setup
+    // Target Group
     const targetsGroup = new THREE.Group();
     scene.add(targetsGroup);
     targetsGroupRef.current = targetsGroup;
 
-    // Generate Floating 3D Heart Targets
+    // Generate Floating Heart Targets
     const heartGeometry = createHeartGeometry();
     const heartMaterial = new THREE.MeshPhongMaterial({
       color: 0xf43f5e,
@@ -488,13 +537,12 @@ function GameContent() {
       targetsGroup.add(heartMesh);
     }
 
-    // Spawn Hostile Enemy Core Orbs with Rotating Orbital Rings
+    // Spawn Hostile Core Orb Enemies
     enemiesRef.current = [];
     const orbColors = [0x700c3b, 0x420822];
     for (let i = 0; i < 5; i++) {
       const enemyGroup = new THREE.Group();
       
-      // Bumpy glowing central core
       const coreGeo = new THREE.SphereGeometry(0.7, 12, 12);
       const coreMat = new THREE.MeshPhongMaterial({
         color: orbColors[i % orbColors.length],
@@ -504,14 +552,12 @@ function GameContent() {
       const coreMesh = new THREE.Mesh(coreGeo, coreMat);
       enemyGroup.add(coreMesh);
 
-      // Neon orbital ring rotating around the core
       const ringGeo = new THREE.TorusGeometry(1.0, 0.05, 8, 32);
       const ringMat = new THREE.MeshBasicMaterial({ color: 0xff3385 });
       const ringMesh = new THREE.Mesh(ringGeo, ringMat);
       ringMesh.rotation.x = Math.PI / 3;
       enemyGroup.add(ringMesh);
 
-      // Angry Eyes (glowing red)
       const eyeGeo = new THREE.BoxGeometry(0.12, 0.06, 0.1);
       const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff003c });
       const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
@@ -526,7 +572,6 @@ function GameContent() {
       rightEye.rotation.z = Math.PI / 12;
       enemyGroup.add(rightEye);
 
-      // Position enemy
       enemyGroup.position.set(
         (Math.random() > 0.5 ? 1 : -1) * (20 + Math.random() * 25),
         1.5,
@@ -544,10 +589,10 @@ function GameContent() {
       });
     }
 
-    // Spawn Cute Talkable NPCs (Lulu and Pipo)
+    // Spawn Cute Talkable NPCs
     npcsRef.current = [];
 
-    // NPC 1: Teddy Bear Pipo
+    // Teddy Pipo
     const pipoGroup = new THREE.Group();
     const pipoBody = new THREE.Mesh(new THREE.SphereGeometry(0.48, 12, 12), new THREE.MeshPhongMaterial({ color: 0xffa4b9 }));
     pipoBody.position.set(0, 0.4, 0);
@@ -566,7 +611,7 @@ function GameContent() {
     pipoEarR.position.x = 0.28;
     pipoGroup.add(pipoEarR);
 
-    pipoGroup.position.set(-14, 2.2, -20); // platform 2
+    pipoGroup.position.set(-14, 2.2, -20); // Platform 2
     scene.add(pipoGroup);
     npcsRef.current.push({
       mesh: pipoGroup,
@@ -574,12 +619,12 @@ function GameContent() {
       dialogues: [
         "Hi! Welcome to our dream world! Otávio wanted me to tell you that you are his favorite adventure companion.",
         "Switch weapons using keys [1], [2], and [3]! Try the Minigun or Sniper!",
-        "Sneak using Ctrl/C or sprint using Shift. Jump across platforms using Spacebar!"
+        "Sneak using Ctrl/C or sprint using Shift. Walk onto the steps of the staircases to climb up automatically!"
       ],
       currentDialogueIndex: 0
     });
 
-    // NPC 2: Lulu the Bunny
+    // Bunny Lulu
     const luluGroup = new THREE.Group();
     const luluBody = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 12), new THREE.MeshPhongMaterial({ color: 0xffffff }));
     luluBody.position.set(0, 0.35, 0);
@@ -600,7 +645,7 @@ function GameContent() {
     luluEarR.rotation.z = -Math.PI / 16;
     luluGroup.add(luluEarR);
 
-    luluGroup.position.set(14, 4.8, -20); // platform 4
+    luluGroup.position.set(14, 4.8, -20); // Platform 4
     scene.add(luluGroup);
     npcsRef.current.push({
       mesh: luluGroup,
@@ -613,13 +658,12 @@ function GameContent() {
       currentDialogueIndex: 0
     });
 
-    // Create Camera Weapon Attachment Holder Group
+    // Camera Weapon attachment
     const gunGroup = new THREE.Group();
-    scene.add(camera);
     camera.add(gunGroup);
     gunGroupRef.current = gunGroup;
 
-    // --- GUN MODEL 0: Sleek Pink Blaster ---
+    // --- GUN 0: Sleek Pink Blaster ---
     const blaster = new THREE.Group();
     const bBody = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.07, 0.22), new THREE.MeshPhongMaterial({ color: 0xffb6c1, shininess: 90 }));
     blaster.add(bBody);
@@ -631,7 +675,7 @@ function GameContent() {
     bHandle.rotation.x = -Math.PI / 6;
     bHandle.position.set(0, -0.07, 0.04);
     blaster.add(bHandle);
-    // Glowing side wings
+    // Side wings
     const bWingL = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.04, 0.12), new THREE.MeshBasicMaterial({ color: 0xff66cc }));
     bWingL.position.set(-0.04, 0.02, -0.04);
     blaster.add(bWingL);
@@ -644,23 +688,20 @@ function GameContent() {
     gunGroup.add(blaster);
     blasterRef.current = blaster;
 
-    // --- GUN MODEL 1: Bulky Minigun with Rotating Barrels ---
+    // --- GUN 1: Minigun ---
     const minigun = new THREE.Group();
-    // Heavy body frame
     const mBody = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.22), new THREE.MeshPhongMaterial({ color: 0xe879f9, shininess: 80 }));
     mBody.position.set(0, 0, 0.05);
     minigun.add(mBody);
     const mHandle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.05), new THREE.MeshPhongMaterial({ color: 0x701a75 }));
-    mHandle.position.set(0, 0.09, 0.08); // overhead handle grip
+    mHandle.position.set(0, 0.09, 0.08);
     minigun.add(mHandle);
 
-    // Rotating barrels group
     const barrelsGroup = new THREE.Group();
     barrelsGroup.position.set(0, 0, -0.06);
     minigun.add(barrelsGroup);
     minigunBarrelsRef.current = barrelsGroup;
 
-    // 6 Barrel cylinders arranged in a circle
     const barrelCount = 6;
     const barrelRadius = 0.04;
     for (let j = 0; j < barrelCount; j++) {
@@ -680,18 +721,18 @@ function GameContent() {
     minigunRef.current = minigun;
     minigun.visible = false;
 
-    // --- GUN MODEL 2: Sleek Long-barrel Sniper Rifle ---
+    // --- GUN 2: Sniper ---
     const sniper = new THREE.Group();
     const sBody = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.08, 0.32), new THREE.MeshPhongMaterial({ color: 0xa21caf, shininess: 90 }));
     sniper.add(sBody);
     const sStock = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.07, 0.18), new THREE.MeshPhongMaterial({ color: 0x701a75 }));
-    sStock.position.set(0, -0.04, 0.2); // buttstock
+    sStock.position.set(0, -0.04, 0.2);
     sniper.add(sStock);
     const sBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.42, 6), new THREE.MeshPhongMaterial({ color: 0xf43f5e, shininess: 120 }));
     sBarrel.rotation.x = Math.PI / 2;
     sBarrel.position.set(0, 0.015, -0.34);
     sniper.add(sBarrel);
-    // Sniper Scope tube on top
+    
     const sScope = new THREE.Group();
     const scopeTube = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.16, 8), new THREE.MeshPhongMaterial({ color: 0xffffff }));
     scopeTube.rotation.x = Math.PI / 2;
@@ -709,7 +750,7 @@ function GameContent() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
       
-      // PREVENT TAB CLOSE SHORTCUTS (e.g. CTRL+W crouching and moving)
+      // PREVENT TAB CLOSE SHORTCUTS (CTRL+W crouching and moving)
       if (e.ctrlKey && key === "w") {
         e.preventDefault();
       }
@@ -722,12 +763,10 @@ function GameContent() {
       if (e.key === "Shift") keysRef.current.shift = true;
       if (key === "c" || e.key === "Control") keysRef.current.ctrl = true;
 
-      // Handle Dialogue Interaction or Next dialogue
       if (key === "e") {
         handleNpcInteraction();
       }
 
-      // Handle weapon switching keys
       if (key === "1") switchWeapon(0);
       if (key === "2") switchWeapon(1);
       if (key === "3") switchWeapon(2);
@@ -754,16 +793,12 @@ function GameContent() {
       if (document.pointerLockElement !== canvasRef.current) return;
       
       if (e.button === 0) {
-        // Left Click
         leftClickHeldRef.current = true;
-        
-        // Single shot weapons fire immediately on mousedown
         const config = WEAPONS[activeWeaponIndexRef.current];
         if (!config.automatic) {
           handleFire();
         }
       } else if (e.button === 2) {
-        // Right Click: Aim down sights (Only if weapon supports aiming)
         const config = WEAPONS[activeWeaponIndexRef.current];
         if (config.aimable) {
           isAimingRef.current = true;
@@ -776,14 +811,13 @@ function GameContent() {
       if (e.button === 0) {
         leftClickHeldRef.current = false;
       } else if (e.button === 2) {
-        // Release Right Click: Stop aiming
         isAimingRef.current = false;
         setIsAiming(false);
       }
     };
 
     const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault(); // Block right-click menu
+      e.preventDefault();
     };
 
     const handleResize = () => {
@@ -803,7 +837,6 @@ function GameContent() {
     window.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener("resize", handleResize);
 
-    // Clean up
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
@@ -854,21 +887,19 @@ function GameContent() {
   const switchWeapon = (index: number) => {
     if (index === activeWeaponIndexRef.current || gameState !== "playing") return;
     
-    // Stop aiming during weapon swap
     isAimingRef.current = false;
     setIsAiming(false);
 
     activeWeaponIndexRef.current = index;
     setActiveWeaponIndex(index);
-    weaponCooldownRef.current = 0.35; // weapon draw delay cooldown
+    weaponCooldownRef.current = 0.35; // draw delay
 
-    // Toggle 3D mesh visibility
     if (blasterRef.current) blasterRef.current.visible = index === 0;
     if (minigunRef.current) minigunRef.current.visible = index === 1;
     if (sniperRef.current) sniperRef.current.visible = index === 2;
   };
 
-  // Trigger damage overlay red flash
+  // Trigger red flash when taking damage
   const triggerDamageFlash = () => {
     setRedScreenFlash(true);
     setTimeout(() => setRedScreenFlash(false), 220);
@@ -881,8 +912,8 @@ function GameContent() {
     const pCount = isEnemy ? 30 : 15;
     const pGeo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
     const colors = isEnemy 
-      ? [0x5b0e2d, 0x1f030e, 0x8a1643, 0xff0055] // dark gloom particles
-      : [0xf43f5e, 0xff66cc, 0xffffff];          // target pink particles
+      ? [0x5b0e2d, 0x1f030e, 0x8a1643, 0xff0055]
+      : [0xf43f5e, 0xff66cc, 0xffffff];
 
     for (let i = 0; i < pCount; i++) {
       const color = colors[Math.floor(Math.random() * colors.length)];
@@ -892,7 +923,6 @@ function GameContent() {
       pMesh.position.copy(point);
       sceneRef.current.add(pMesh);
 
-      // Random velocities
       const velocity = new THREE.Vector3(
         (Math.random() - 0.5) * (isEnemy ? 8.0 : 6.0),
         Math.random() * (isEnemy ? 6.0 : 5.0) + 1.0,
@@ -913,7 +943,6 @@ function GameContent() {
 
     const camera = cameraRef.current;
     
-    // Approximate gun tip coordinates in world space relative to camera orientation
     const startPoint = new THREE.Vector3();
     startPoint.copy(camera.position);
     
@@ -925,10 +954,9 @@ function GameContent() {
     
     startPoint.add(sideOffset);
 
-    // Calculate length and orientation
     const distance = startPoint.distanceTo(hitPoint);
     const tracerGeo = new THREE.CylinderGeometry(0.008, 0.008, distance, 4);
-    tracerGeo.rotateX(Math.PI / 2); // align along camera look axis
+    tracerGeo.rotateX(Math.PI / 2);
 
     const tracerMat = new THREE.MeshBasicMaterial({
       color: 0xff66cc,
@@ -937,14 +965,13 @@ function GameContent() {
     });
     const tracerMesh = new THREE.Mesh(tracerGeo, tracerMat);
 
-    // Position tracer midway
     tracerMesh.position.copy(startPoint).add(hitPoint).multiplyScalar(0.5);
     tracerMesh.lookAt(hitPoint);
 
     sceneRef.current.add(tracerMesh);
     tracersRef.current.push({
       mesh: tracerMesh,
-      life: 0.1 // quick fadeout duration
+      life: 0.1
     });
   };
 
@@ -954,16 +981,12 @@ function GameContent() {
 
     const config = WEAPONS[activeWeaponIndexRef.current];
 
-    // Trigger Synth audio
     synthShootSound();
     setShots((prev) => prev + 1);
 
-    // Set draw cooldown based on weapons
     weaponCooldownRef.current = config.cooldown;
 
-    // Apply gun recoil push back
     gunRecoilRef.current = config.recoil;
-    // Kick camera pitch up dynamically (screen recoil)
     cameraTargetKickRef.current = isAimingRef.current ? config.recoil * 0.25 : config.recoil * 0.6;
 
     if (!cameraRef.current || !targetsGroupRef.current) return;
@@ -972,13 +995,11 @@ function GameContent() {
     const center = new THREE.Vector2(0, 0);
     raycaster.setFromCamera(center, cameraRef.current);
 
-    // Target lists
     const targets = targetsGroupRef.current.children;
     const enemyMeshes = enemiesRef.current
       .filter((e) => e.respawnTimer <= 0)
       .map((e) => e.mesh);
 
-    // Combine targets and enemies for collision
     const shootableObjects = [...targets, ...enemyMeshes];
     const intersects = raycaster.intersectObjects(shootableObjects, true);
 
@@ -987,7 +1008,6 @@ function GameContent() {
       const hit = intersects[0];
       hitPoint.copy(hit.point);
 
-      // Check hit entity
       let hitTargetMesh = targets.find((t) => t === hit.object || t.children.includes(hit.object));
       let hitEnemy = enemiesRef.current.find((e) => 
         e.mesh === hit.object || 
@@ -1000,7 +1020,6 @@ function GameContent() {
         triggerExplosion(hit.point, false);
         setPoints((prev) => prev + 100);
 
-        // Respawn heart target inside bounds
         hitTargetMesh.position.set(
           (Math.random() - 0.5) * (MAP_SIZE - 20),
           1.5 + Math.random() * 4.5,
@@ -1010,7 +1029,6 @@ function GameContent() {
 
       } else if (hitEnemy) {
         synthHitSound();
-        // Sniper deals double damage
         const damage = config.name === "Sniper" ? 2 : 1;
         hitEnemy.health -= damage;
 
@@ -1020,7 +1038,6 @@ function GameContent() {
           setPoints((prev) => prev + 250);
           triggerExplosion(hitEnemy.mesh.position, true);
 
-          // Put enemy in respawn queue
           hitEnemy.respawnTimer = 4.0;
           hitEnemy.mesh.position.set(9999, -9999, 9999);
         }
@@ -1032,25 +1049,38 @@ function GameContent() {
     createBulletTracer(hitPoint);
   };
 
-  // Main Canvas Click handler
-  const handleCanvasClick = (e: React.MouseEvent) => {
-    if (gameState === "start") {
-      setGameState("playing");
-      setPoints(0);
-      setHealth(100);
-      setTimeLeft(60);
-      setActiveWeaponIndex(0);
-      activeWeaponIndexRef.current = 0;
-      playerPositionYRef.current = 0;
-      playerVelocityYRef.current = 0;
-      isGroundedRef.current = true;
-      horizontalVelocityRef.current.set(0, 0, 0);
-      lockPointer();
-    } else if (gameState === "playing") {
-      if (!isLocked) {
-        lockPointer();
+  // Ground height calculation supporting Platforms and Stairs (automatic step-up check)
+  const getSurfaceHeight = (px: number, pz: number) => {
+    let maxHeight = 0;
+    const buffer = 0.35; // margin
+
+    // Check platforms
+    for (const p of PLATFORMS) {
+      const xMin = p.x - p.w / 2 - buffer;
+      const xMax = p.x + p.w / 2 + buffer;
+      const zMin = p.z - p.d / 2 - buffer;
+      const zMax = p.z + p.d / 2 + buffer;
+
+      if (px > xMin && px < xMax && pz > zMin && pz < zMax) {
+        const topY = p.y + p.h / 2;
+        if (topY > maxHeight) maxHeight = topY;
       }
     }
+
+    // Check stairs / steps
+    for (const s of STEPS) {
+      const xMin = s.x - s.w / 2 - buffer;
+      const xMax = s.x + s.w / 2 + buffer;
+      const zMin = s.z - s.d / 2 - buffer;
+      const zMax = s.z + s.d / 2 + buffer;
+
+      if (px > xMin && px < xMax && pz > zMin && pz < zMax) {
+        const topY = s.y + s.h / 2;
+        if (topY > maxHeight) maxHeight = topY;
+      }
+    }
+
+    return maxHeight;
   };
 
   // Main Simulation Loop
@@ -1071,7 +1101,6 @@ function GameContent() {
         const gunGroup = gunGroupRef.current;
         const renderer = rendererRef.current;
 
-        // Decrease weapon firing cooldown
         if (weaponCooldownRef.current > 0) {
           weaponCooldownRef.current -= delta;
         }
@@ -1080,11 +1109,9 @@ function GameContent() {
         if (isLockedRef.current && npcDialogue === null) {
           const move = mouseMoveRef.current;
           
-          // Apply aiming sensitivity multiplier
           const sens = isAimingRef.current ? 0.0006 : 0.0018;
           camera.rotation.y -= move.movementX * sens;
           
-          // Track target recoil kick plus manual mouse look
           const nextPitch = camera.rotation.x - move.movementY * sens;
           camera.rotation.x = Math.max(-Math.PI / 2.3, Math.min(Math.PI / 2.3, nextPitch));
           
@@ -1099,7 +1126,6 @@ function GameContent() {
           cameraTargetKickRef.current = 0;
         }
         
-        // Recover camera look back down towards rest position
         if (cameraKickRef.current > 0) {
           const recovery = Math.min(cameraKickRef.current, delta * 0.12);
           camera.rotation.x -= recovery;
@@ -1135,11 +1161,10 @@ function GameContent() {
         if (keys.d) targetVector.x += 1.0;
 
         targetVector.normalize().multiplyScalar(currentWalkSpeed);
-        // Apply camera yaw (Y axis) to target movement vector
         targetVector.applyEuler(new THREE.Euler(0, camera.rotation.y, 0));
 
         // Smooth horizontal velocity (Inertia physics slide)
-        const accel = isGroundedRef.current ? 12.0 : 3.0; // Less control in mid-air
+        const accel = isGroundedRef.current ? 12.0 : 3.0;
         horizontalVelocityRef.current.x += (targetVector.x - horizontalVelocityRef.current.x) * accel * delta;
         horizontalVelocityRef.current.z += (targetVector.z - horizontalVelocityRef.current.z) * accel * delta;
 
@@ -1155,12 +1180,12 @@ function GameContent() {
         camera.position.x = Math.max(-boundaryLimit, Math.min(boundaryLimit, camera.position.x));
         camera.position.z = Math.max(-boundaryLimit, Math.min(boundaryLimit, camera.position.z));
 
-        // Wall AABB collisions check (sliding off platform borders)
+        // Wall AABB collisions check for platforms (Slide block if feet are below platform Y surface)
         for (const p of PLATFORMS) {
           const topY = p.y + p.h / 2;
           const bottomY = p.y - p.h / 2;
 
-          if (playerPositionYRef.current < topY - 0.15 && playerPositionYRef.current + 1.8 > bottomY) {
+          if (playerPositionYRef.current < topY - 0.25 && playerPositionYRef.current + 1.8 > bottomY) {
             const buffer = 0.55;
             const xMin = p.x - p.w / 2 - buffer;
             const xMax = p.x + p.w / 2 + buffer;
@@ -1178,10 +1203,34 @@ function GameContent() {
           }
         }
 
-        // Apply Vertical Physics (Gravity & Platform Landing Shock)
+        // Wall AABB collisions check for stairs / step blocks
+        for (const s of STEPS) {
+          const topY = s.y + s.h / 2;
+          const bottomY = s.y - s.h / 2;
+
+          if (playerPositionYRef.current < topY - 0.25 && playerPositionYRef.current + 1.8 > bottomY) {
+            const buffer = 0.55;
+            const xMin = s.x - s.w / 2 - buffer;
+            const xMax = s.x + s.w / 2 + buffer;
+            const zMin = s.z - s.d / 2 - buffer;
+            const zMax = s.z + s.d / 2 + buffer;
+
+            if (camera.position.x > xMin && camera.position.x < xMax &&
+                camera.position.z > zMin && camera.position.z < zMax) {
+              camera.position.x = oldX;
+              if (camera.position.x > xMin && camera.position.x < xMax &&
+                  camera.position.z > zMin && camera.position.z < zMax) {
+                camera.position.z = oldZ;
+              }
+            }
+          }
+        }
+
+        // Apply Vertical Physics (Gravity & Platform/Stair step calculations)
         const wasGrounded = isGroundedRef.current;
+        
         if (!isGroundedRef.current) {
-          playerVelocityYRef.current -= 24 * delta; // Gravity fall
+          playerVelocityYRef.current -= 24 * delta;
           playerPositionYRef.current += playerVelocityYRef.current * delta;
 
           // Floor landing
@@ -1191,54 +1240,38 @@ function GameContent() {
             isGroundedRef.current = true;
           }
 
-          // Platform top landing check
+          // Landing check on Platform or Stair Step
           if (playerVelocityYRef.current <= 0) {
-            for (const p of PLATFORMS) {
-              const topY = p.y + p.h / 2;
-              const buffer = 0.35;
-              const xMin = p.x - p.w / 2 - buffer;
-              const xMax = p.x + p.w / 2 + buffer;
-              const zMin = p.z - p.d / 2 - buffer;
-              const zMax = p.z + p.d / 2 + buffer;
-
-              if (camera.position.x > xMin && camera.position.x < xMax &&
-                  camera.position.z > zMin && camera.position.z < zMax) {
-                if (playerPositionYRef.current >= topY - 0.3 && playerPositionYRef.current + playerVelocityYRef.current * delta <= topY + 0.15) {
-                  playerPositionYRef.current = topY;
-                  playerVelocityYRef.current = 0;
-                  isGroundedRef.current = true;
-                  break;
-                }
+            const currentSurfaceY = getSurfaceHeight(camera.position.x, camera.position.z);
+            if (currentSurfaceY > 0) {
+              if (playerPositionYRef.current >= currentSurfaceY - 0.3 && playerPositionYRef.current + playerVelocityYRef.current * delta <= currentSurfaceY + 0.15) {
+                playerPositionYRef.current = currentSurfaceY;
+                playerVelocityYRef.current = 0;
+                isGroundedRef.current = true;
               }
             }
           }
         } else {
-          // Walked off check
-          if (playerPositionYRef.current > 0) {
-            let stillOnPlatform = false;
-            for (const p of PLATFORMS) {
-              const topY = p.y + p.h / 2;
-              const buffer = 0.4;
-              const xMin = p.x - p.w / 2 - buffer;
-              const xMax = p.x + p.w / 2 + buffer;
-              const zMin = p.z - p.d / 2 - buffer;
-              const zMax = p.z + p.d / 2 + buffer;
+          // Grounded step-up and walk-off check
+          const currentSurfaceY = getSurfaceHeight(camera.position.x, camera.position.z);
+          const heightDiff = currentSurfaceY - playerPositionYRef.current;
 
-              if (camera.position.x > xMin && camera.position.x < xMax &&
-                  camera.position.z > zMin && camera.position.z < zMax &&
-                  Math.abs(playerPositionYRef.current - topY) < 0.15) {
-                stillOnPlatform = true;
-                break;
-              }
-            }
-            if (!stillOnPlatform) {
+          if (heightDiff > 0 && heightDiff <= 0.46) {
+            // Walked onto a stair step block, step up automatically
+            playerPositionYRef.current = currentSurfaceY;
+          } else if (heightDiff < 0) {
+            // Drop down smoothly or walk off edge
+            if (heightDiff >= -0.46) {
+              playerPositionYRef.current = currentSurfaceY;
+            } else {
+              // High fall, begin gravity drop
               isGroundedRef.current = false;
             }
           }
 
           // Jump Action trigger
           if (keys.space && npcDialogue === null) {
-            playerVelocityYRef.current = 8.5; // Vertical jump impulse
+            playerVelocityYRef.current = 8.5;
             isGroundedRef.current = false;
           }
         }
@@ -1254,7 +1287,7 @@ function GameContent() {
           camera.position.y += landingShockRef.current;
         }
 
-        // View Bobbing (Camera sway movement simulation)
+        // View Bobbing
         const currentSpeed = horizontalVelocityRef.current.length();
         if (isGroundedRef.current && currentSpeed > 0.1) {
           bobTimeRef.current += currentSpeed * delta * 1.5;
@@ -1284,7 +1317,6 @@ function GameContent() {
           const targetY = isAimingRef.current ? -0.11 : -0.15;
           const restZ = -0.32;
           
-          // Sniper model is hidden entirely during scoped aim
           if (activeWeaponIndexRef.current === 2 && isAimingRef.current) {
             gunGroup.visible = false;
           } else {
@@ -1297,7 +1329,7 @@ function GameContent() {
           // Apply recoil kick
           if (gunRecoilRef.current > 0) {
             gunGroup.position.z = restZ + gunRecoilRef.current;
-            gunGroup.rotation.x = -gunRecoilRef.current * 2.5; // recoil barrel kick up
+            gunGroup.rotation.x = -gunRecoilRef.current * 2.5;
             gunRecoilRef.current -= delta * 0.45;
           } else {
             gunGroup.position.z += (restZ - gunGroup.position.z) * 15 * delta;
@@ -1341,36 +1373,27 @@ function GameContent() {
 
           const enemyPos = enemy.mesh.position;
           
-          // Face the player YXZ
           enemy.mesh.lookAt(camera.position.x, enemyPos.y, camera.position.z);
-
-          // Rotate the outer orbital ring around core
           enemy.orbitalRing.rotation.x += delta * 2.0;
           enemy.orbitalRing.rotation.y += delta * 3.2;
 
-          // Pulse core scale (Breathing scale animation)
           const coreScale = 1.0 + Math.sin(elapsed * 4.0 + enemy.mesh.id) * 0.08;
           enemy.mesh.scale.set(coreScale, coreScale, coreScale);
 
-          // Chase player coordinate
           const chaseSpeed = 2.2;
           const dir = new THREE.Vector3().subVectors(camera.position, enemyPos);
           dir.y = 0;
           dir.normalize();
 
           enemy.mesh.position.addScaledVector(dir, chaseSpeed * delta);
-
-          // Bob enemy up and down gently
           enemy.mesh.position.y = 1.3 + Math.sin(elapsed * 2.0 + enemy.mesh.id) * 0.2;
 
-          // Melee touch player damage
           const distToPlayer = camera.position.distanceTo(enemyPos);
           if (distToPlayer < 1.4) {
             setHealth((prev) => {
               if (prev > 0) {
                 synthDamageSound();
                 triggerDamageFlash();
-                // Knockback player backwards
                 const pushDir = new THREE.Vector3().subVectors(camera.position, enemyPos);
                 pushDir.y = 0;
                 pushDir.normalize().multiplyScalar(2.2);
@@ -1460,7 +1483,26 @@ function GameContent() {
     };
   }, [gameState, npcDialogue]);
 
-  // Restart game triggers
+  const handleCanvasClick = (e: React.MouseEvent) => {
+    if (gameState === "start") {
+      setGameState("playing");
+      setPoints(0);
+      setHealth(100);
+      setTimeLeft(60);
+      setActiveWeaponIndex(0);
+      activeWeaponIndexRef.current = 0;
+      playerPositionYRef.current = 0;
+      playerVelocityYRef.current = 0;
+      isGroundedRef.current = true;
+      horizontalVelocityRef.current.set(0, 0, 0);
+      lockPointer();
+    } else if (gameState === "playing") {
+      if (!isLocked) {
+        lockPointer();
+      }
+    }
+  };
+
   const handleResetGame = () => {
     setPoints(0);
     setShots(0);
@@ -1478,13 +1520,11 @@ function GameContent() {
     setTimeout(lockPointer, 150);
   };
 
-  // Accuracy calculation
   const getAccuracy = () => {
     if (shots === 0) return 0;
     return Math.round((points / (shots * 100)) * 100);
   };
 
-  // Victory ending dialogue generators
   const getVictoryMessage = () => {
     if (health <= 0) {
       return "Game Over! You were overwhelmed by the gloom shadow clouds, but love always conquers! Try again to clean the map! 💖";
@@ -1515,21 +1555,15 @@ function GameContent() {
       {/* Full screen sniper scope overlay when aiming with sniper */}
       {isAiming && activeWeaponIndex === 2 && gameState === "playing" && (
         <div className="absolute inset-0 z-15 pointer-events-none flex items-center justify-center">
-          {/* Black bars on left/right */}
           <div className="absolute left-0 top-0 bottom-0 w-1/5 bg-black" />
           <div className="absolute right-0 top-0 bottom-0 w-1/5 bg-black" />
           
-          {/* Sniper crosshair circle panel */}
           <div className="w-[80vh] h-[80vh] max-w-full max-h-full rounded-full border-4 border-zinc-800 shadow-[0_0_0_2000px_rgba(0,0,0,0.85)] flex items-center justify-center relative overflow-hidden bg-transparent">
-            {/* Horizontal sniper line */}
             <div className="absolute w-full h-0.5 bg-black/80" />
-            {/* Vertical sniper line */}
             <div className="absolute h-full w-0.5 bg-black/80" />
             
-            {/* Center target dot */}
             <div className="w-1.5 h-1.5 bg-red-600 rounded-full z-10" />
 
-            {/* Scope reflection shadow filter */}
             <div className="absolute inset-0 bg-radial-gradient" 
                  style={{
                    background: "radial-gradient(circle, transparent 70%, rgba(0,0,0,0.4) 100%)"
@@ -1599,7 +1633,7 @@ function GameContent() {
             </div>
           )}
 
-          {/* Center Crosshair (aiming down sights hides default crosshair on Sniper) */}
+          {/* Center Crosshair */}
           {(!isAiming || activeWeaponIndex !== 2) && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="relative flex items-center justify-center">
@@ -1699,7 +1733,7 @@ function GameContent() {
             <div className="space-y-2">
               <h1 className="text-2xl font-extrabold text-pink-300 tracking-wider">CUPID'S 3D ARCADE</h1>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Step inside the upgraded 3D FPS arena! Walk on platforms, interact with friendly NPCs, shoot down angry shadow clouds, and aim down scope sights.
+                Step inside the upgraded 3D FPS arena! Walk on platforms, climb stairs automatically, interact with friendly NPCs, shoot down angry shadow clouds, and aim down scope sights.
               </p>
             </div>
 
@@ -1707,10 +1741,11 @@ function GameContent() {
             <div className="p-4 rounded-2xl bg-zinc-950/70 border border-zinc-800 text-left space-y-2 max-h-52 overflow-y-auto">
               <h3 className="text-xs font-bold text-pink-400 uppercase font-mono">Controls & Bindings</h3>
               <ul className="text-[11px] text-zinc-300 font-mono space-y-1 list-disc list-inside">
-                <li><span className="text-white font-bold">W, A, S, D</span> — Walk with slide inertia</li>
+                <li><span className="text-white font-bold">W, A, S, D</span> — Walk with sliding inertia</li>
                 <li><span className="text-white font-bold">Shift</span> — Hold to Sprint / Run</li>
                 <li><span className="text-white font-bold">Spacebar</span> — Jump onto platforms</li>
                 <li><span className="text-white font-bold">Ctrl / C</span> — Crouch / Sneak</li>
+                <li><span className="text-white font-bold">Stairs Navigation</span> — Walk onto step blocks to climb automatically</li>
                 <li><span className="text-white font-bold">Keys [1, 2, 3]</span> — Swap active guns</li>
                 <li><span className="text-white font-bold">Right Click</span> — Aim Zoom (Sniper gets scope overlay!)</li>
                 <li><span className="text-white font-bold">Left Click</span> — Fire blasters (Minigun is Full-Auto!)</li>
