@@ -92,6 +92,8 @@ function GalleryContent() {
   // States for expanding selected item
   const [selectedItem, setSelectedItem] = useState<(ImageMeta & { index: number }) | null>(null);
   const [clickOrigin, setClickOrigin] = useState<{ x: number; y: number } | null>(null);
+  const [imageAspect, setImageAspect] = useState<number>(1.2);
+
 
   // Fetch images database
   useEffect(() => {
@@ -116,8 +118,10 @@ function GalleryContent() {
   // Handle cell click to open details modal
   const handleCellClick = (e: React.MouseEvent, index: number, itemMeta: ImageMeta) => {
     setClickOrigin({ x: e.clientX, y: e.clientY });
+    setImageAspect(1.2); // Reset to default while loading
     setSelectedItem({ ...itemMeta, index });
   };
+
 
   // Compute 3D translations and rotations based on distance
   const getCellStyle = (item: typeof GALLERY_ITEMS[0]): React.CSSProperties => {
@@ -274,20 +278,53 @@ function GalleryContent() {
               transformOrigin: clickOrigin ? `${clickOrigin.x}px ${clickOrigin.y}px` : "center"
             }}
           >
-            {/* Left/Top Column: Image Display */}
-            <div className="w-full md:w-3/5 h-1/2 md:h-full relative overflow-hidden bg-black/60 flex items-center justify-center border-b md:border-b-0 md:border-r border-zinc-800">
+            {/* Left Column: Image Display (Desktop) */}
+            <div 
+              style={{ 
+                aspectRatio: `${imageAspect}`,
+                maxWidth: "65%" 
+              }}
+              className="h-full relative overflow-hidden bg-black/60 hidden md:block shrink-0 border-r border-zinc-800 transition-all duration-300"
+            >
               <img
                 src={selectedItem.url}
                 alt="Selected Love Memory"
-                className="w-full h-full object-cover"
+                onLoad={(e) => {
+                  const img = e.currentTarget;
+                  if (img.naturalWidth && img.naturalHeight) {
+                    setImageAspect(img.naturalWidth / img.naturalHeight);
+                  }
+                }}
+                className="w-full h-full object-contain bg-zinc-950"
                 draggable={false}
               />
-              {/* Overlay shadow to integrate image with card frame */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none" />
             </div>
 
+            {/* Top Row: Image Display (Mobile) */}
+            <div 
+              style={{ 
+                aspectRatio: `${imageAspect}`,
+                maxHeight: "45%" 
+              }}
+              className="w-full relative overflow-hidden bg-black/60 md:hidden shrink-0 border-b border-zinc-800 transition-all duration-300"
+            >
+              <img
+                src={selectedItem.url}
+                alt="Selected Love Memory"
+                onLoad={(e) => {
+                  const img = e.currentTarget;
+                  if (img.naturalWidth && img.naturalHeight) {
+                    setImageAspect(img.naturalWidth / img.naturalHeight);
+                  }
+                }}
+                className="w-full h-full object-contain bg-zinc-950"
+                draggable={false}
+              />
+            </div>
+
             {/* Right/Bottom Column: Memory Details Card */}
-            <div className="w-full md:w-2/5 h-1/2 md:h-full p-6 md:p-8 flex flex-col justify-between bg-zinc-900/95">
+            <div className="flex-1 h-full p-6 md:p-8 flex flex-col justify-between bg-zinc-900/95 overflow-y-auto">
               <div className="space-y-4">
                 {/* Date indicator */}
                 <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-pink-400 font-mono">
@@ -318,6 +355,7 @@ function GalleryContent() {
                 </button>
               </div>
             </div>
+
           </div>
         </div>
       )}
